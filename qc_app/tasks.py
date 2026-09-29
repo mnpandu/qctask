@@ -181,6 +181,11 @@ def perform_task_action(task_id, action, user=None):
     return rows, messages[action]
 
 
+def perform_task_action_and_refresh_view(task_id, action, user, revision):
+    rows, message = perform_task_action(task_id, action, user)
+    return rows, message, revision + 1
+
+
 def save_task_comments(task_id, comments, user=None):
     identity.require_user(user)
     try:

@@ -113,7 +113,7 @@ def create_app() -> gr.Blocks:
                         label,
                         open=index == 0,
                         elem_classes=["task-entry", "task-summary"],
-                        key=f"task-{task_id}",
+                        key=f"task-{task_id}-{row[2]}",
                     ) as task_expansion:
                         task_id_state = gr.State(task_id)
                         with gr.Row():
@@ -133,13 +133,12 @@ def create_app() -> gr.Blocks:
                                     )
                                 )
                             with gr.Column(scale=1, elem_classes="task-actions"):
-                                assign = gr.Button("SELF ASSIGN", size="sm")
-                                delete = gr.Button("DELETE TASK", size="sm")
+                                with gr.Row():
+                                    assign = gr.Button("SELF ASSIGN", size="sm")
+                                    finish = gr.Button("Complete Task", size="sm")
+                                    delete = gr.Button("DELETE TASK", size="sm")
                         comment = gr.Textbox(value=row[7], label="Comments", lines=2)
                         save = gr.Button("Save Comments", size="sm")
-                        with gr.Row():
-                            gr.Markdown("")
-                            finish = gr.Button("Complete Task", scale=0, size="sm")
                         gr.HTML(presentation.claims_for_review_html(canonical))
                         review = gr.Button("+ Review Claims", size="sm")
                         gr.HTML('<div class="qc-bar">QC Review Information</div>')
@@ -159,9 +158,11 @@ def create_app() -> gr.Blocks:
                         panels.build_completed_claims(canonical, bindings)
                         work_panel = panels.build_review_panel(task_id, bindings)
                         assign.click(
-                            lambda tid, user: tasks.perform_task_action(tid, "assign", user),
-                            [task_id_state, user_state],
-                            [task_rows, notice],
+                            lambda tid, user, revision: tasks.perform_task_action_and_refresh_view(
+                                tid, "assign", user, revision
+                            ),
+                            [task_id_state, user_state, task_view_revision],
+                            [task_rows, notice, task_view_revision],
                         ).then(
                             notifications.notification_badge,
                             user_state,
@@ -173,9 +174,11 @@ def create_app() -> gr.Blocks:
                             [task_rows, notice],
                         )
                         finish.click(
-                            lambda tid, user: tasks.perform_task_action(tid, "finish", user),
-                            [task_id_state, user_state],
-                            [task_rows, notice],
+                            lambda tid, user, revision: tasks.perform_task_action_and_refresh_view(
+                                tid, "finish", user, revision
+                            ),
+                            [task_id_state, user_state, task_view_revision],
+                            [task_rows, notice, task_view_revision],
                         )
                         save.click(
                             tasks.save_task_comments,

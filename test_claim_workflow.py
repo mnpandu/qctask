@@ -33,6 +33,20 @@ class ClaimWorkflowTests(unittest.TestCase):
         refresh.assert_called_once_with(user)
         self.assertEqual(result, (rows, 5))
 
+    def test_task_actions_refresh_the_task_view(self):
+        rows = [[1, "Task", "Completed"]]
+        user = config.USERS["pandu"]
+        with patch.object(
+            tasks, "perform_task_action", return_value=(rows, "Task completed.")
+        ) as action, patch.object(
+            tasks, "refresh_task_heading"
+        ) as refresh_heading:
+            result = tasks.perform_task_action_and_refresh_view(1, "finish", user, 4)
+
+        action.assert_called_once_with(1, "finish", user)
+        refresh_heading.assert_not_called()
+        self.assertEqual(result, (rows, "Task completed.", 5))
+
     def test_login_users_have_separate_roles(self):
         with (
             patch.object(tasks, "refresh_tasks", return_value=[]),
