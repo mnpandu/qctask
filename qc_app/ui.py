@@ -137,8 +137,7 @@ def create_app() -> gr.Blocks:
                                     assign = gr.Button("SELF ASSIGN", size="sm")
                                     finish = gr.Button("Complete Task", size="sm")
                                     delete = gr.Button("DELETE TASK", size="sm")
-                        comment = gr.Textbox(value=row[7], label="Comments", lines=2)
-                        save = gr.Button("Save Comments", size="sm")
+                        gr.Textbox(value=row[7], label="Comments", lines=2, interactive=False)
                         gr.HTML(presentation.claims_for_review_html(canonical))
                         review = gr.Button("+ Review Claims", size="sm")
                         gr.HTML('<div class="qc-bar">QC Review Information</div>')
@@ -179,11 +178,6 @@ def create_app() -> gr.Blocks:
                             ),
                             [task_id_state, user_state, task_view_revision],
                             [task_rows, notice, task_view_revision],
-                        )
-                        save.click(
-                            tasks.save_task_comments,
-                            [task_id_state, comment, user_state],
-                            [task_rows, notice],
                         )
                         review.click(lambda: gr.update(visible=True), outputs=work_panel)
 

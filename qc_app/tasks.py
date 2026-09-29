@@ -186,23 +186,6 @@ def perform_task_action_and_refresh_view(task_id, action, user, revision):
     return rows, message, revision + 1
 
 
-def save_task_comments(task_id, comments, user=None):
-    identity.require_user(user)
-    try:
-        with database.connect_db() as conn:
-            qc.lock_task(conn, task_id, config.CASE_ID)
-            if len(comments or "") > 4000:
-                raise ValueError("Comments must be 4,000 characters or fewer.")
-            conn.execute(
-                "UPDATE pic_master.task SET task_comment = %s, updated_by = %s, updated_dts = CURRENT_TIMESTAMP WHERE task_id = %s",
-                (comments, identity.actor_id(user), task_id),
-            )
-            rows = repository.list_tasks(conn)
-    except ValueError as exc:
-        raise gr.Error(str(exc)) from None
-    return rows, "Comments saved."
-
-
 def refresh_task_heading(task_id):
     with database.connect_db() as conn:
         row = next(r for r in repository.list_tasks(conn) if r[0] == task_id)
