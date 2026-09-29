@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+.gradio/
+.ruff_cache/
+.pytest_cache/
+.venv/

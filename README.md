@@ -3,6 +3,38 @@
 Run `python app.py` to start Gradio with a public share link. Install dependencies
 with `python -m pip install -r requirements.txt` if needed.
 
+## Code structure
+
+`app.py` is the entry point: initialize the database, create the interface, then
+launch it. Importing it does not create Gradio components or connect to PostgreSQL.
+Use `from qc_app.ui import create_app` to build an independent interface in another
+runner or test. Database initialization remains an explicit startup step.
+
+The application is organized by responsibility:
+
+- `qc_app/config.py` and `identity.py`: environment settings, choices, and session identity.
+- `qc_app/database.py` and `repository.py`: connection/schema setup and task read queries.
+- `qc_app/task_service.py` and `messaging_service.py`: mutations using caller-owned transactions.
+- `claim_workflow.py`: claim eligibility, locking, review decisions, and canonical JSON synchronization.
+- `qc_app/tasks.py`, `claims.py`, `messaging.py`, `notifications.py`, and `session.py`:
+  Gradio callbacks, including transaction boundaries and user-facing results.
+- `qc_app/presentation.py`: pure HTML and label formatting with escaped content.
+- `qc_app/ui.py` and `panels.py`: interface composition and claim panel event wiring.
+- `qc_app/assets/`: CSS and JavaScript, loaded relative to the module location.
+
+Services do not import Gradio. They accept an existing connection so related writes
+commit or roll back together. UI callbacks translate workflow errors into Gradio
+messages. Shared configuration is accessed through the config module, so test
+overrides apply consistently across modules.
+
+Run `python -m unittest discover -v` for UI construction checks and the workflow
+suite. The workflow integration test requires the configured PostgreSQL database
+with `schema.sql` already applied; its data changes are rolled back. UI construction
+tests use mocked database access and do not launch a server.
+
+Formatting and import checks are configured in `pyproject.toml`. With Ruff installed,
+run `python -m ruff check .` and `python -m ruff format --check .`.
+
 Sign in as `pandu` (Pandu, QC Nurse) or `regine` (Regine, Nurse). Each browser
 session keeps its own selected user. This is a simple username selector, not
 password-protected authentication; do not expose it publicly for sensitive data.

@@ -1,0 +1,91 @@
+.qc-component-loader { display: none !important; }
+.gradio-container { max-width: 1450px !important; }
+.gradio-container .qc-overlay {
+ position: fixed !important; inset: 0 !important; z-index: 1000 !important;
+ width: 100vw !important; height: 100dvh !important; max-height: 100dvh !important;
+ background: rgba(15, 23, 42, .58) !important; padding: 4vh 4vw !important;
+ overflow-y: auto !important; border: 0 !important;
+}
+.gradio-container .qc-dialog {
+ background: #fff !important; color: #172b4d !important;
+ width: 100% !important; max-width: 1250px; margin: auto;
+ padding: 24px !important; border-radius: 8px !important;
+ box-shadow: 0 16px 60px #0005;
+}
+.qc-results { width: 100%; border-collapse: collapse; }
+.qc-results th { background: #edf2f7; color: #172b4d; text-align: left; }
+.qc-results th, .qc-results td { padding: 10px; border-bottom: 1px solid #d5dce3; }
+.qc-empty { text-align: center; padding: 16px; }
+.qc-review-header { display: grid; grid-template-columns: 1.2fr 1fr 1.5fr 2fr .7fr 1.2fr; gap: 12px; padding: 8px 12px; background: #edf2f7; font-weight: 700; }
+.qc-review-row { display: grid; grid-template-columns: 1.2fr 1fr 1.5fr 2fr .7fr 1.2fr; gap: 12px; align-items: center; padding: 10px 12px; }
+.qc-review-row small { color: #52677f; }
+.gradio-container .qc-area-group { padding: 12px !important; background: #fff !important; }
+.gradio-container .qc-area-group .wrap { display: flex !important; flex-direction: column; gap: 8px; }
+.gradio-container .qc-area-group label { display: flex !important; min-height: 40px; color: #172b4d !important; background: #f1f5f9 !important; border: 1px solid #94a3b8 !important; }
+.gradio-container .qc-area-group label span { color: #172b4d !important; }
+.gradio-container .qc-area-group input[type="checkbox"] { appearance: auto !important; width: 20px !important; height: 20px !important; opacity: 1 !important; accent-color: #1764a2; }
+.qc-message { border: 1px solid #d5dce3; padding: 10px 12px; margin: 8px 0; }
+.qc-message small { display: block; color: #52677f; margin-top: 4px; }
+.qc-message p { white-space: pre-wrap; margin: 8px 0 0; }
+.qc-login-overlay {
+ position: fixed !important; inset: 0 !important; z-index: 3000 !important;
+ width: 100vw !important; height: 100dvh !important; max-height: 100dvh !important;
+ background: rgba(15, 23, 42, .94) !important;
+ align-items: center; justify-content: center; padding: 24px !important;
+}
+.qc-login-overlay > .qc-login-card {
+ width: min(440px, 100%); background: #fff; padding: 28px;
+ border-radius: 10px; box-shadow: 0 16px 60px #0005;
+}
+.qc-user-bar {
+ position: fixed !important; top: 12px; right: 18px; z-index: 1200;
+ width: auto !important; background: white; padding: 8px 12px;
+ border: 1px solid #d5dce3; border-radius: 8px; box-shadow: 0 4px 18px #0002;
+ display: flex !important; flex-wrap: nowrap !important; align-items: center;
+ gap: 8px; white-space: nowrap;
+}
+.qc-user-name { text-align: center !important; margin: 8px auto 16px !important; }
+.qc-user-name p { text-align: center !important; margin: 0 !important; font-size: 18px; font-weight: 600; }
+.qc-alert-popup {
+ position: fixed !important; top: 68px; right: 18px; z-index: 1300;
+ width: min(440px, calc(100vw - 36px)); max-height: 70vh; overflow-y: auto;
+ background: white; border: 1px solid #d5dce3; border-radius: 8px;
+ box-shadow: 0 12px 36px #0003; padding: 14px;
+}
+.gradio-container .task-header { background-color: #3b4148 !important; color: #fff !important; padding: 10px 12px 10px 38px;
+ display: grid; grid-template-columns: .7fr 1.7fr 1fr 1fr 1fr 1.2fr 1.2fr; gap: 12px; font-size: 12px; }
+.gradio-container .task-header span { color: #fff !important; font-weight: 700; }
+.task-entry { border: 1px solid #d5dce3 !important; border-radius: 0 !important; }
+.gradio-container .task-entry > button.label-wrap {
+ display: flex !important; flex-direction: row !important;
+ justify-content: flex-start !important; gap: 10px; padding: 10px 12px;
+ background-color: #edf2f7 !important; color: #172b4d !important;
+}
+.gradio-container .task-entry > button.label-wrap > span:not(.icon) {
+ order: 1; flex: 1 1 auto; text-align: left; white-space: pre-wrap; color: #172b4d !important;
+}
+.gradio-container .task-entry > button.label-wrap > span.icon {
+ order: 0; flex: 0 0 16px; width: 16px; margin: 0 !important;
+ color: #174c7a !important; text-align: center;
+}
+.gradio-container .task-entry > button.label-wrap:focus-visible { outline: 2px solid #1764a2; }
+.gradio-container .task-summary > button.label-wrap > span:not(.icon) {
+ display: grid !important; grid-template-columns: .7fr 1.7fr 1fr 1fr 1fr 1.2fr 1.2fr;
+ gap: 12px; min-width: 0; align-items: center;
+}
+.task-summary > button.label-wrap > span:not(.icon) > span {
+ min-width: 0; overflow-wrap: anywhere; white-space: normal; font-size: 12px;
+}
+.task-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 25px; padding: 14px 8px; }
+.task-fields strong { display:block; font-size: 11px; text-transform: uppercase; margin-bottom: 8px; }
+.task-fields span { font-size: 13px; }
+.claim-list-section { padding: 14px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; }
+.claim-list-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; color: #172b4d; }
+.claim-list-heading > span { font-size: 12px; color: #475569; background: #edf2f7; border-radius: 12px; padding: 3px 10px; }
+.claim-list-scroll { max-height: 200px; overflow-y: auto; scrollbar-gutter: stable; }
+.claim-list-scroll:focus-visible { outline: 2px solid #1764a2; outline-offset: 3px; }
+.claim-number-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 !important; margin: 0 !important; list-style: none !important; }
+.claim-number-list > li { margin: 0 !important; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 4px; background: #f1f5f9; color: #172b4d; font-family: ui-monospace, monospace; font-size: 13px; max-width: 100%; overflow-wrap: anywhere; user-select: text; }
+.qc-bar { background: #174c7a; color: white; padding: 6px 10px; font-weight: bold; }
+.task-actions button { background: #1764a2; color: white; border-radius: 2px; }
+@media(max-width: 700px) { .task-fields { grid-template-columns: repeat(2, 1fr); } }
