@@ -137,6 +137,10 @@ def refresh_tasks(user=None):
         raise database_error() from None
 
 
+def refresh_task_view(user, revision):
+    return refresh_tasks(user), revision + 1
+
+
 def prepare_review(task_name):
     if task_name not in TASK_TYPES:
         return gr.update(visible=False), [], gr.update(choices=[], value=[]), ""
@@ -879,6 +883,7 @@ with gr.Blocks(title="Tasks", theme=gr.themes.Soft(primary_hue="blue"), css=CSS,
             mark_alerts_read = gr.Button("Mark Read", size="sm")
             close_alert_button = gr.Button("Close", size="sm")
     alert_timer = gr.Timer(15)
+    task_view_revision = gr.State(0)
     with gr.Tab("Tasks"):
         with gr.Row():
             gr.Markdown("## Tasks")
@@ -898,8 +903,8 @@ with gr.Blocks(title="Tasks", theme=gr.themes.Soft(primary_hue="blue"), css=CSS,
         cancel_button.click(cancel_review, outputs=[review_panel, task_dropdown, notice])
         gr.HTML('<div class="task-header"><span>TASK ID</span><span>TASK NAME</span><span>CASE NUMBER</span><span>STATUS</span><span>ASSIGNED TO</span><span>CREATED ON</span><span>COMPLETED ON</span></div>')
 
-        @gr.render(inputs=[task_rows, user_state])
-        def render_tasks(rows, user):
+        @gr.render(inputs=[task_rows, user_state, task_view_revision])
+        def render_tasks(rows, user, _revision):
             if not user:
                 gr.Markdown("Sign in to view tasks.")
                 return
@@ -1052,8 +1057,12 @@ with gr.Blocks(title="Tasks", theme=gr.themes.Soft(primary_hue="blue"), css=CSS,
                                             decision, review_comment, user_state,
                                         ],
                                         [claim_notice, claim_panel, save_claim],
-                                    ).then(refresh_task_heading, task_id_state, [summary, task_expansion]).then(
-                                        refresh_tasks, user_state, task_rows,
+                                    ).then(
+                                        refresh_task_heading, task_id_state, [summary, task_expansion],
+                                    ).then(
+                                        refresh_task_view,
+                                        [user_state, task_view_revision],
+                                        [task_rows, task_view_revision],
                                     )
                             for claim_index, panel in enumerate(claim_panels):
                                 panel.expand(partial(expand_claim_panels, claim_index, len(claim_panels)), outputs=claim_panels, queue=False)
@@ -1066,7 +1075,10 @@ with gr.Blocks(title="Tasks", theme=gr.themes.Soft(primary_hue="blue"), css=CSS,
                     save.click(save_task_comments, [task_id_state, comment, user_state], [task_rows, notice])
                     review.click(lambda: gr.update(visible=True), outputs=work_panel)
         refresh = gr.Button("Refresh Tasks", size="sm")
-        refresh.click(refresh_tasks, user_state, task_rows)
+        refresh.click(
+            refresh_task_view, [user_state, task_view_revision],
+            [task_rows, task_view_revision],
+        )
     login_button.click(
         login_user, login_choice,
         [user_state, login_panel, user_banner, task_rows, alert_button],

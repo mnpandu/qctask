@@ -8,6 +8,15 @@ import claim_workflow as qc
 
 
 class ClaimWorkflowTests(unittest.TestCase):
+    def test_refresh_task_view_forces_render_when_task_rows_are_unchanged(self):
+        rows = [[1, 'Task', 'In Progress']]
+        user = app.USERS['pandu']
+        with patch.object(app, 'refresh_tasks', return_value=rows) as refresh:
+            result = app.refresh_task_view(user, 4)
+
+        refresh.assert_called_once_with(user)
+        self.assertEqual(result, (rows, 5))
+
     def test_login_users_have_separate_roles(self):
         with patch.object(app, 'refresh_tasks', return_value=[]), patch.object(
             app, 'notification_badge', return_value='Alerts (0)'
