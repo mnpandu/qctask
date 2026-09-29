@@ -71,6 +71,20 @@ class ApplicationStructureTests(unittest.TestCase):
         self.assertIsInstance(review_panel, gr.Column)
         self.assertFalse(review_panel.visible)
         self.assertGreater(len(demo.config["dependencies"]), 10)
+        labels = {
+            component["id"]: component.get("props", {}).get("label")
+            for component in demo.config["components"]
+        }
+        decision_changes = [
+            dependency
+            for dependency in demo.config["dependencies"]
+            if any(
+                trigger == "change" and labels.get(component_id) == "QC Review"
+                for component_id, trigger in dependency["targets"]
+            )
+        ]
+        self.assertTrue(decision_changes)
+        self.assertTrue(all(dependency["queue"] for dependency in decision_changes))
 
     def test_presentation_escapes_claim_content(self):
         rendered = presentation.claims_for_review_html(

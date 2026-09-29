@@ -73,7 +73,7 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                         ),
                     )
                 edit_decision.change(
-                    claims.update_qc_comment, edit_decision, edit_comment, queue=False
+                    claims.update_qc_comment, edit_decision, edit_comment
                 )
                 edit_notice = gr.Markdown("")
                 save_edit = gr.Button("Save Points and QC Review", variant="primary")
@@ -185,7 +185,7 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                                 saved_decision, review_details.get("qcReviewComment")
                             ),
                         )
-                    decision.change(claims.update_qc_comment, decision, review_comment, queue=False)
+                    decision.change(claims.update_qc_comment, decision, review_comment)
                     save_claim = gr.Button(
                         "Save",
                         variant="primary",
