@@ -22,6 +22,7 @@ class TaskViewBindings:
     task_expansion: gr.Accordion
     notifications_panel: gr.HTML
     alert_button: gr.Button
+    can_manage: bool = True
 
 
 def build_completed_claims(canonical, bindings: TaskViewBindings):
@@ -36,7 +37,7 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
             with gr.Column(scale=5, min_width=0):
                 claim_summary = gr.HTML(presentation.render_claim_review_summary(item))
             with gr.Column(scale=1, min_width=70):
-                edit_claim = gr.Button("Edit", size="sm")
+                edit_claim = gr.Button("Edit" if bindings.can_manage else "Conversation and notes", size="sm")
         with gr.Column(visible=False, elem_classes="qc-overlay") as edit_overlay:
             with gr.Column(elem_classes="qc-dialog"):
                 gr.Markdown(f"### Claim {claim_id}")
@@ -52,12 +53,13 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                     ],
                     label="Review Areas",
                     show_label=False,
-                    interactive=True,
+                    interactive=bindings.can_manage,
                     elem_classes="qc-area-group",
                 )
                 edit_points = gr.Textbox(
                     value=review_details.get("points", ""),
                     label="Points",
+                    interactive=bindings.can_manage,
                     max_length=100,
                 )
                 with gr.Row():
@@ -65,18 +67,20 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                         choices=list(qc.QC_DECISIONS),
                         value=edit_decision_value,
                         label="QC Review",
+                        interactive=bindings.can_manage,
                     )
                     edit_comment = gr.Dropdown(
                         label="QC Review Comment",
-                        **claims.qc_comment_options(
+                        **{**claims.qc_comment_options(
                             edit_decision_value, review_details.get("qcReviewComment")
-                        ),
+                        ), "interactive": bindings.can_manage and edit_decision_value != "Agree"},
                     )
-                edit_decision.change(
-                    claims.update_qc_comment, edit_decision, edit_comment
-                )
+                if bindings.can_manage:
+                    edit_decision.change(
+                        claims.update_qc_comment, edit_decision, edit_comment
+                    )
                 edit_notice = gr.Markdown("")
-                save_edit = gr.Button("Save Points and QC Review", variant="primary")
+                save_edit = gr.Button("Save Points and QC Review", variant="primary", visible=bindings.can_manage)
                 edit_claim_id_state = gr.State(claim_id)
                 save_edit.click(
                     claims.save_claim_edit_group,
@@ -144,7 +148,7 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
         with gr.Column(elem_classes="qc-dialog"):
             gr.Markdown(f"### Review Claims ? Task {task_id}")
             close_popup = gr.Button("Close", size="sm")
-            gr.Markdown("Expand a claim to enter its QC review.")
+            gr.Markdown("Expand a claim to enter its QC review." if bindings.can_manage else "Expand a claim to view its details.")
             with database.connect_db() as conn:
                 claim_rows, _ = qc.review_view(conn, task_id)
             claim_panels = []
@@ -171,25 +175,28 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                         choices=list(qc.QC_REVIEW_CATEGORIES),
                         value=review_details.get("reviewCategories", []),
                         label="Review Areas",
+                        interactive=bindings.can_manage,
                     )
                     with gr.Row():
                         decision = gr.Dropdown(
                             choices=list(qc.QC_DECISIONS),
                             value=saved_decision if saved_decision in qc.QC_DECISIONS else None,
                             label="QC Review",
-                            interactive=True,
+                            interactive=bindings.can_manage,
                         )
                         review_comment = gr.Dropdown(
                             label="QC Review Comment",
-                            **claims.qc_comment_options(
+                            **{**claims.qc_comment_options(
                                 saved_decision, review_details.get("qcReviewComment")
-                            ),
+                            ), "interactive": bindings.can_manage and saved_decision != "Agree"},
                         )
-                    decision.change(claims.update_qc_comment, decision, review_comment)
+                    if bindings.can_manage:
+                        decision.change(claims.update_qc_comment, decision, review_comment)
                     save_claim = gr.Button(
                         "Save",
                         variant="primary",
-                        interactive=claim_status not in qc.REVIEWED_STATUSES,
+                        interactive=bindings.can_manage and claim_status not in qc.REVIEWED_STATUSES,
+                        visible=bindings.can_manage,
                     )
                     claim_notice = gr.Markdown("")
                     save_claim.click(

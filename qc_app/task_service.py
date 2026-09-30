@@ -74,7 +74,9 @@ def persist_update(conn, task_id, status, assigned_to, comments, claim_ids=None,
 
 
 def task_action(conn, task_id, action, user=None):
-    qc.lock_task(conn, task_id, config.CASE_ID)
+    status = qc.lock_task(conn, task_id, config.CASE_ID)
+    if status == "Completed" and action in ("assign", "finish"):
+        raise ValueError("This task is already completed and cannot be self-assigned or completed again.")
     if action == "assign":
         recipient = identity.actor_id(user)
         previous = conn.execute(

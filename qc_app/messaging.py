@@ -59,7 +59,7 @@ def send_claim_note_form(task_id, claim_id, recipient, message, user=None):
     except psycopg.Error:
         raise errors.database_error() from None
     return (
-        f"Note sent to {recipient}; the assigned nurse was alerted when assigned.",
+        f"Note sent to {recipient}.",
         claim_conversation_html(task_id, claim_id),
         gr.update(value=""),
     )

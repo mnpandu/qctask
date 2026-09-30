@@ -58,21 +58,21 @@ class ClaimWorkflowTests(unittest.TestCase):
         self.assertEqual(pandu[0], {"id": "pandu", "name": "Pandu", "role": "QC Nurse"})
         self.assertEqual(regine[0], {"id": "regine", "name": "Regine", "role": "Nurse"})
 
-    def test_notification_recipients_include_target_and_assigned_nurse_once(self):
+    def test_notification_recipients_include_only_target(self):
         self.assertEqual(
-            messaging_service.notification_recipients("nurse-two", "nurse-one"),
-            ["nurse-two", "nurse-one"],
+            messaging_service.notification_recipients("nurse-two"),
+            ["nurse-two"],
         )
         self.assertEqual(
-            messaging_service.notification_recipients("nurse-one", "nurse-one"),
+            messaging_service.notification_recipients("nurse-one"),
             ["nurse-one"],
         )
 
     def test_blank_note_recipient_defaults_to_current_user(self):
         with patch.object(config, "ACTOR_ID", "self-user"):
             self.assertEqual(
-                messaging_service.notification_recipients(config.ACTOR_ID, "assigned-nurse"),
-                ["self-user", "assigned-nurse"],
+                messaging_service.notification_recipients(config.ACTOR_ID),
+                ["self-user"],
             )
 
     def test_note_reply_recipient_defaults_to_last_conversation_participant(self):
@@ -101,13 +101,13 @@ class ClaimWorkflowTests(unittest.TestCase):
                 "nurse",
             )
 
-    def test_sending_claim_note_alerts_recipient_and_assigned_nurse(self):
+    def test_sending_claim_note_alerts_only_recipient(self):
         calls = []
 
         def execute(query, params=None):
             calls.append((query, params))
             if "SELECT COALESCE(assigned_to" in query:
-                return SimpleNamespace(fetchone=lambda: ("nurse-one",))
+                return SimpleNamespace(fetchone=lambda: ("pandu",))
             if "INSERT INTO pic_master.qc_claim_messages" in query:
                 return SimpleNamespace(fetchone=lambda: (42,))
             return SimpleNamespace(fetchone=lambda: None)
@@ -119,7 +119,7 @@ class ClaimWorkflowTests(unittest.TestCase):
             patch.object(config, "CASE_ID", 1),
         ):
             messaging_service.persist_claim_note(
-                conn, 7, "CLM-1", "nurse-two", "Please review this claim."
+                conn, 7, "CLM-1", "regine", "Please review this claim.", config.USERS["pandu"]
             )
 
         notification_rows = [
@@ -127,7 +127,7 @@ class ClaimWorkflowTests(unittest.TestCase):
         ]
         self.assertEqual(
             [params[3] for params in notification_rows],
-            ["nurse-two", "nurse-one"],
+            ["regine"],
         )
 
     def test_saving_qc_decision_persists_review_areas_and_points(self):

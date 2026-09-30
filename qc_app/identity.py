@@ -17,3 +17,14 @@ def require_user(user):
     if not user or config.USERS.get(user.get("id")) != user:
         raise gr.Error("Sign in as Pandu or Regine to continue.")
     return user
+
+
+def can_manage(user):
+    return bool(user and config.USERS.get(user.get("id")) == user and user.get("role") == "QC Nurse")
+
+
+def require_qc_nurse(user):
+    require_user(user)
+    if not can_manage(user):
+        raise gr.Error("Only QC nurses can change tasks or QC reviews. Nurses can view and share conversation notes.")
+    return user

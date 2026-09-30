@@ -81,8 +81,7 @@ Override using PGHOST, PGPORT, PGDATABASE, PGUSER, and PGPASSWORD.
 - `pic_master.claim_details`: claim JSON, qc_status, and updated_dts, keyed by case ID and
   claim number. Review outcomes and notes live only in task_details.task_canonical.
 - `pic_master.qc_claim_messages` and `pic_master.qc_notifications`: per-claim
-  conversation notes and unread in-app alerts for the named recipient and
-  assigned RACF.
+  conversation notes and unread in-app alerts only for the note's named recipient.
 
 The claim payload uses this structure (claim numbers remain strings):
 

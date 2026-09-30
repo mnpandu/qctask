@@ -22,12 +22,8 @@ def claim_note_reply_recipient(conn, task_id, claim_id, current_actor=None):
     return recipient if sender == (current_actor or config.ACTOR_ID) else sender
 
 
-def notification_recipients(recipient, assigned_racf):
-    return list(
-        dict.fromkeys(
-            user.strip() for user in (recipient, assigned_racf or "") if user and user.strip()
-        )
-    )
+def notification_recipients(recipient):
+    return [recipient.strip()] if recipient and recipient.strip() else []
 
 
 def persist_claim_note(conn, task_id, claim_id, recipient, message, user=None):
@@ -53,7 +49,7 @@ def persist_claim_note(conn, task_id, claim_id, recipient, message, user=None):
     """,
         (task_id, claim_id, identity.actor_id(user), recipient, assigned_racf or None, message),
     ).fetchone()[0]
-    for user in notification_recipients(recipient, assigned_racf):
+    for user in notification_recipients(recipient):
         conn.execute(
             """
         INSERT INTO pic_master.qc_notifications

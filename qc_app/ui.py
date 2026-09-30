@@ -8,6 +8,7 @@ import claim_workflow as qc
 
 from . import (
     config,
+    identity,
     notifications,
     panels,
     presentation,
@@ -60,7 +61,7 @@ def create_app() -> gr.Blocks:
             with gr.Row():
                 gr.Markdown("## Tasks")
                 task_dropdown = gr.Dropdown(
-                    choices=config.TASK_TYPES, value=None, label="Create Task", filterable=False
+                    choices=config.TASK_TYPES, value=None, label="Create Task", filterable=False, interactive=False
                 )
             notice = gr.Markdown("")
             with gr.Column(visible=False) as review_panel:
@@ -102,6 +103,7 @@ def create_app() -> gr.Blocks:
                     return
                 if not rows:
                     gr.Markdown("No tasks to display.")
+                can_manage = identity.can_manage(user)
                 for index, row in enumerate(rows):
                     task_id = row[0]
                     metadata = repository.task_metadata(task_id)
@@ -134,12 +136,12 @@ def create_app() -> gr.Blocks:
                                 )
                             with gr.Column(scale=1, elem_classes="task-actions"):
                                 with gr.Row():
-                                    assign = gr.Button("SELF ASSIGN", size="sm")
-                                    finish = gr.Button("Complete Task", size="sm")
-                                    delete = gr.Button("DELETE TASK", size="sm")
+                                    assign = gr.Button("SELF ASSIGN", size="sm", interactive=can_manage and row[2] != "Completed")
+                                    finish = gr.Button("Complete Task", size="sm", interactive=can_manage and row[2] != "Completed")
+                                    delete = gr.Button("DELETE TASK", size="sm", interactive=can_manage)
                         gr.Textbox(value=row[7], label="Comments", lines=2, interactive=False)
                         gr.HTML(presentation.claims_for_review_html(canonical))
-                        review = gr.Button("+ Review Claims", size="sm")
+                        review = gr.Button("+ Review Claims" if can_manage else "View Claims", size="sm")
                         gr.HTML('<div class="qc-bar">QC Review Information</div>')
                         gr.HTML(
                             '<div class="qc-review-header"><span>Claim</span><span>QC Review</span><span>QC Review Comment</span><span>Review Areas</span><span>Points</span><span>Reviewed By</span></div>'
@@ -153,6 +155,7 @@ def create_app() -> gr.Blocks:
                             task_expansion=task_expansion,
                             notifications_panel=notifications_panel,
                             alert_button=alert_button,
+                            can_manage=can_manage,
                         )
                         panels.build_completed_claims(canonical, bindings)
                         work_panel = panels.build_review_panel(task_id, bindings)
@@ -187,6 +190,11 @@ def create_app() -> gr.Blocks:
                 [user_state, task_view_revision],
                 [task_rows, task_view_revision],
             )
+        user_state.change(
+            lambda user: (gr.update(interactive=identity.can_manage(user), value=None), gr.update(visible=False)),
+            user_state,
+            [task_dropdown, review_panel],
+        )
         login_button.click(
             session.login_user,
             login_choice,

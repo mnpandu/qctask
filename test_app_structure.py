@@ -1,5 +1,6 @@
 """Regression checks for application startup and extracted UI components."""
 
+import asyncio
 import importlib
 import unittest
 from unittest.mock import MagicMock, patch
@@ -7,10 +8,28 @@ from unittest.mock import MagicMock, patch
 import gradio as gr
 
 import app
-from qc_app import database, panels, presentation, ui
+from qc_app import claims, database, panels, presentation, ui
 
 
 class ApplicationStructureTests(unittest.TestCase):
+    def test_claim_expansion_updates_single_and_multiple_accordions(self):
+        for count in (1, 3):
+            with self.subTest(claim_count=count):
+                with gr.Blocks() as demo:
+                    accordions = [gr.Accordion(open=False) for _ in range(count)]
+                    event = accordions[0].expand(
+                        lambda: None, outputs=accordions, queue=False
+                    )
+                result = asyncio.run(
+                    demo.postprocess_data(
+                        demo.fns[event["id"]],
+                        claims.expand_claim_panels(0, count),
+                        None,
+                    )
+                )
+                self.assertEqual(len(result), count)
+                self.assertEqual([update["open"] for update in result], [True] + [False] * (count - 1))
+
     def test_import_does_not_build_ui_or_connect_to_database(self):
         with patch.object(gr, "Blocks") as blocks, patch.object(database, "connect_db") as connect:
             importlib.reload(ui)

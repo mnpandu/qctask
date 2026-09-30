@@ -18,7 +18,9 @@ from . import (
 
 
 def expand_claim_panels(selected, count):
-    return [gr.update(open=index == selected) for index in range(count)]
+    updates = [gr.update(open=index == selected) for index in range(count)]
+    # Gradio wraps single-output results itself, including layout updates.
+    return updates[0] if count == 1 else updates
 
 
 def qc_comment_options(decision, saved=None):
@@ -37,7 +39,7 @@ def update_qc_comment(decision):
 
 
 def save_claim_form(task_id, claim_id, categories, decision, comment, user=None):
-    identity.require_user(user)
+    identity.require_qc_nurse(user)
     try:
         with database.connect_db() as conn:
             qc.save_claim_decision(
@@ -74,7 +76,7 @@ def save_claim_edit_form(
     comment,
     user=None,
 ):
-    identity.require_user(user)
+    identity.require_qc_nurse(user)
     categories = [
         name
         for name, checked in zip(
@@ -171,12 +173,12 @@ def open_claim_editor(task_id, claim_id, user=None):
             )
         ),
         gr.update(
-            **qc_comment_options(
+            **{**qc_comment_options(
                 "Action Required"
                 if details.get("qcReview") == "Returned for Corrections"
                 else details.get("qcReview"),
                 details.get("qcReviewComment"),
-            )
+            ), "interactive": identity.can_manage(user) and details.get("qcReview") != "Agree"}
         ),
     )
 
