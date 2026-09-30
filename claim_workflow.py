@@ -148,8 +148,18 @@ def save_review(conn, task_id, case_id, claim_id, outcome, notes, complete, acto
     sync_canonical(conn, task_id, actor)
 
 
-QC_DECISIONS = ("Agree", "Action Required")
-QC_COMMENTS = ("Completed", "Response Required", "Correction required")
+QC_COMMENT_OPTIONS = {
+    "Agree": ("Completed",),
+    "Action Required": ("Return for Correction", "Response Requested"),
+    "Re-review": ("Return of Correction", "Complete"),
+}
+QC_DECISIONS = tuple(QC_COMMENT_OPTIONS)
+QC_COMMENTS = tuple(comment for choices in QC_COMMENT_OPTIONS.values() for comment in choices)
+LEGACY_QC_COMMENTS = {
+    "Response Required": "Response Requested",
+    "Correction required": "Return for Correction",
+    "Correction Required": "Return for Correction",
+}
 REVIEWED_STATUSES = ("Agree", "Returned for Corrections", "Completed")
 QC_REVIEW_CATEGORIES = (
     "Clinical Determination",
@@ -181,9 +191,8 @@ def save_claim_decision(
     lock_task(conn, task_id, case_id)
     if decision == "Agree":
         comment = "Completed"
-    if decision not in QC_DECISIONS or (
-        decision == "Action Required" and comment not in QC_COMMENTS[1:]
-    ):
+    comment = LEGACY_QC_COMMENTS.get(comment, comment)
+    if comment not in QC_COMMENT_OPTIONS.get(decision, ()):
         raise ValueError("Select QC Review and QC Review Comment before saving.")
     categories = list(dict.fromkeys(categories or []))
     if not set(categories).issubset(QC_REVIEW_CATEGORIES):
@@ -198,7 +207,7 @@ def save_claim_decision(
         UPDATE pic_master.claim_details SET qc_status = %s, updated_dts = CURRENT_TIMESTAMP
         WHERE case_id = %s AND claim_number = %s
     """,
-        ("Agree" if decision == "Agree" else "Returned for Corrections", case_id, claim_id),
+        ("Agree" if decision == "Agree" else "Completed" if decision == "Re-review" and comment == "Complete" else "Returned for Corrections", case_id, claim_id),
     )
     details = {
         "qcReview": decision,

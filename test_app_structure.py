@@ -6,12 +6,34 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import gradio as gr
+from gradio.context import LocalContext
+from gradio.state_holder import SessionState
 
 import app
 from qc_app import claims, database, panels, presentation, ui
 
 
 class ApplicationStructureTests(unittest.TestCase):
+    def test_task_refresh_preserves_dynamic_event_ids(self):
+        demo = ui.create_app()
+        state = SessionState(demo)
+        renderer = demo.renderables[0]
+        rows = [[1, "Partial", "In Progress", "Pandu", "today", "", 1, ""]]
+        canonical = {"claimsForReviews": [{"claimNumber": "C1", "qcReviewStatus": "Agree", "qcReviewDetails": {"qcReview": "Agree"}}]}
+        token = LocalContext.blocks_config.set(state.blocks_config)
+        try:
+            with patch.object(ui.repository, "task_metadata", return_value=("pandu", "pandu", "Pandu", canonical)), patch.object(database, "connect_db"), patch.object(panels.qc, "review_view", return_value=([("C1", "Agree", {}, {})], None)):
+                renderer.apply(rows, ui.config.USERS["pandu"], 0)
+                before = {fn.key: fn._id for fn in state.blocks_config.fns.values() if fn.rendered_in is renderer}
+                self.assertNotIn(None, before)
+                rows[0][2] = "Completed"
+                renderer.apply(rows, ui.config.USERS["pandu"], 1)
+                after = {fn.key: fn._id for fn in state.blocks_config.fns.values() if fn.rendered_in is renderer}
+                self.assertEqual(before, after)
+        finally:
+            LocalContext.blocks_config.reset(token)
+
+
     def test_claim_expansion_updates_single_and_multiple_accordions(self):
         for count in (1, 3):
             with self.subTest(claim_count=count):

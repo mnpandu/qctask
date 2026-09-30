@@ -24,6 +24,24 @@ from qc_app import (
 
 
 class ClaimWorkflowTests(unittest.TestCase):
+    def test_review_comment_choices_and_rereview_outcomes(self):
+        self.assertEqual(claims.qc_comment_options("Agree"), {
+            "choices": ["Completed"], "value": "Completed", "interactive": False,
+        })
+        self.assertEqual(claims.qc_comment_options("Action Required")["choices"],
+                         ["Return for Correction", "Response Requested"])
+        self.assertEqual(claims.qc_comment_options("Re-review")["choices"],
+                         ["Return of Correction", "Complete"])
+        for comment, status in (("Return of Correction", "Returned for Corrections"), ("Complete", "Completed")):
+            conn = MagicMock()
+            with patch.object(qc, "lock_task"), patch.object(qc, "review_view", return_value=([("C1", status, {}, {})], None)), patch.object(qc, "sync_canonical") as sync:
+                qc.save_claim_decision(conn, 1, 1, "C1", "Re-review", comment, "pandu")
+                self.assertEqual(conn.execute.call_args_list[0].args[1], (status, 1, "C1"))
+                self.assertEqual(sync.call_args.args[4]["qcReviewComment"], comment)
+                with self.assertRaises(ValueError):
+                    qc.save_claim_decision(conn, 1, 1, "C1", "Re-review", "Response Requested", "pandu")
+
+
     def test_refresh_task_view_forces_render_when_task_rows_are_unchanged(self):
         rows = [[1, "Task", "In Progress"]]
         user = config.USERS["pandu"]

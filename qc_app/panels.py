@@ -37,7 +37,9 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
             with gr.Column(scale=5, min_width=0):
                 claim_summary = gr.HTML(presentation.render_claim_review_summary(item))
             with gr.Column(scale=1, min_width=70):
-                edit_claim = gr.Button("Edit" if bindings.can_manage else "Conversation and notes", size="sm")
+                edit_claim = gr.Button(
+                    "Edit" if bindings.can_manage else "Conversation and notes", size="sm"
+                )
         with gr.Column(visible=False, elem_classes="qc-overlay") as edit_overlay:
             with gr.Column(elem_classes="qc-dialog"):
                 gr.Markdown(f"### Claim {claim_id}")
@@ -71,16 +73,24 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                     )
                     edit_comment = gr.Dropdown(
                         label="QC Review Comment",
-                        **{**claims.qc_comment_options(
-                            edit_decision_value, review_details.get("qcReviewComment")
-                        ), "interactive": bindings.can_manage and edit_decision_value != "Agree"},
+                        **{
+                            **claims.qc_comment_options(
+                                edit_decision_value, review_details.get("qcReviewComment")
+                            ),
+                            "interactive": bindings.can_manage and edit_decision_value != "Agree",
+                        },
                     )
                 if bindings.can_manage:
                     edit_decision.change(
-                        claims.update_qc_comment, edit_decision, edit_comment
+                        claims.update_qc_comment,
+                        edit_decision,
+                        edit_comment,
+                        key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-79-change",
                     )
                 edit_notice = gr.Markdown("")
-                save_edit = gr.Button("Save Points and QC Review", variant="primary", visible=bindings.can_manage)
+                save_edit = gr.Button(
+                    "Save Points and QC Review", variant="primary", visible=bindings.can_manage
+                )
                 edit_claim_id_state = gr.State(claim_id)
                 save_edit.click(
                     claims.save_claim_edit_group,
@@ -94,10 +104,12 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                         bindings.user_state,
                     ],
                     [edit_notice, edit_overlay, claim_summary],
+                    key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-85-click",
                 ).then(
                     tasks.refresh_task_heading,
                     bindings.task_id_state,
                     [bindings.summary, bindings.task_expansion],
+                    key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-85-then",
                 )
                 gr.Markdown("#### Conversation and notes")
                 conversation = gr.HTML('<p class="qc-empty">Open this editor to load notes.</p>')
@@ -118,14 +130,17 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                         bindings.user_state,
                     ],
                     [note_notice, conversation, note_text],
+                    key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-111-click",
                 ).then(
                     notifications.notifications_html,
                     bindings.user_state,
                     bindings.notifications_panel,
+                    key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-111-then",
                 ).then(
                     notifications.notification_badge,
                     bindings.user_state,
                     bindings.alert_button,
+                    key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-111-then",
                 )
         edit_claim.click(
             claims.open_claim_editor_group,
@@ -139,8 +154,13 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                 edit_decision,
                 edit_comment,
             ],
+            key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-130-click",
         )
-        close_edit.click(lambda: gr.update(visible=False), outputs=edit_overlay)
+        close_edit.click(
+            lambda: gr.update(visible=False),
+            outputs=edit_overlay,
+            key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-143-click",
+        )
 
 
 def build_review_panel(task_id: int, bindings: TaskViewBindings):
@@ -148,7 +168,11 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
         with gr.Column(elem_classes="qc-dialog"):
             gr.Markdown(f"### Review Claims ? Task {task_id}")
             close_popup = gr.Button("Close", size="sm")
-            gr.Markdown("Expand a claim to enter its QC review." if bindings.can_manage else "Expand a claim to view its details.")
+            gr.Markdown(
+                "Expand a claim to enter its QC review."
+                if bindings.can_manage
+                else "Expand a claim to view its details."
+            )
             with database.connect_db() as conn:
                 claim_rows, _ = qc.review_view(conn, task_id)
             claim_panels = []
@@ -166,7 +190,7 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                         )
                     )
                     claim_id_state = gr.State(claim_id)
-                    saved_decision = (
+                    saved_decision = review_details.get("qcReview") or (
                         "Action Required"
                         if claim_status == "Returned for Corrections"
                         else claim_status
@@ -186,16 +210,25 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                         )
                         review_comment = gr.Dropdown(
                             label="QC Review Comment",
-                            **{**claims.qc_comment_options(
-                                saved_decision, review_details.get("qcReviewComment")
-                            ), "interactive": bindings.can_manage and saved_decision != "Agree"},
+                            **{
+                                **claims.qc_comment_options(
+                                    saved_decision, review_details.get("qcReviewComment")
+                                ),
+                                "interactive": bindings.can_manage and saved_decision != "Agree",
+                            },
                         )
                     if bindings.can_manage:
-                        decision.change(claims.update_qc_comment, decision, review_comment)
+                        decision.change(
+                            claims.update_qc_comment,
+                            decision,
+                            review_comment,
+                            key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-194-change",
+                        )
                     save_claim = gr.Button(
                         "Save",
                         variant="primary",
-                        interactive=bindings.can_manage and claim_status not in qc.REVIEWED_STATUSES,
+                        interactive=bindings.can_manage
+                        and claim_status not in qc.REVIEWED_STATUSES,
                         visible=bindings.can_manage,
                     )
                     claim_notice = gr.Markdown("")
@@ -210,20 +243,28 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                             bindings.user_state,
                         ],
                         [claim_notice, claim_panel, save_claim],
+                        key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-202-click",
                     ).then(
                         tasks.refresh_task_heading,
                         bindings.task_id_state,
                         [bindings.summary, bindings.task_expansion],
+                        key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-202-then",
                     ).then(
                         tasks.refresh_task_view,
                         [bindings.user_state, bindings.task_view_revision],
                         [bindings.task_rows, bindings.task_view_revision],
+                        key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-202-then",
                     )
             for claim_index, panel in enumerate(claim_panels):
                 panel.expand(
                     partial(claims.expand_claim_panels, claim_index, len(claim_panels)),
                     outputs=claim_panels,
                     queue=False,
+                    key=f"task-{bindings.task_id_state.value}-claim-{claim_index}-event-223-expand",
                 )
-    close_popup.click(lambda: gr.update(visible=False), outputs=work_panel)
+    close_popup.click(
+        lambda: gr.update(visible=False),
+        outputs=work_panel,
+        key=f"task-{bindings.task_id_state.value}-claim--event-228-click",
+    )
     return work_panel

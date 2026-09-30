@@ -26,10 +26,9 @@ def expand_claim_panels(selected, count):
 def qc_comment_options(decision, saved=None):
     if decision == "Agree":
         return dict(choices=["Completed"], value="Completed", interactive=False)
-    if decision == "Action Required":
-        if saved == "Correction Required":
-            saved = "Correction required"
-        choices = ["Response Required", "Correction required"]
+    if decision in qc.QC_COMMENT_OPTIONS:
+        saved = qc.LEGACY_QC_COMMENTS.get(saved, saved)
+        choices = list(qc.QC_COMMENT_OPTIONS[decision])
         return dict(choices=choices, value=saved if saved in choices else None, interactive=True)
     return dict(choices=[], value=None, interactive=False)
 

@@ -63,7 +63,11 @@ def create_app() -> gr.Blocks:
             with gr.Row():
                 gr.Markdown("## Tasks")
                 task_dropdown = gr.Dropdown(
-                    choices=config.TASK_TYPES, value=None, label="Create Task", filterable=False, interactive=False
+                    choices=config.TASK_TYPES,
+                    value=None,
+                    label="Create Task",
+                    filterable=False,
+                    interactive=False,
                 )
             notice = gr.Markdown("")
             with gr.Column(visible=False) as review_panel:
@@ -138,12 +142,24 @@ def create_app() -> gr.Blocks:
                                 )
                             with gr.Column(scale=1, elem_classes="task-actions"):
                                 with gr.Row():
-                                    assign = gr.Button("SELF ASSIGN", size="sm", interactive=can_manage and row[2] != "Completed")
-                                    finish = gr.Button("Complete Task", size="sm", interactive=can_manage and row[2] != "Completed")
-                                    delete = gr.Button("DELETE TASK", size="sm", interactive=can_manage)
+                                    assign = gr.Button(
+                                        "SELF ASSIGN",
+                                        size="sm",
+                                        interactive=can_manage and row[2] != "Completed",
+                                    )
+                                    finish = gr.Button(
+                                        "Complete Task",
+                                        size="sm",
+                                        interactive=can_manage and row[2] != "Completed",
+                                    )
+                                    delete = gr.Button(
+                                        "DELETE TASK", size="sm", interactive=can_manage
+                                    )
                         gr.Textbox(value=row[7], label="Comments", lines=2, interactive=False)
                         gr.HTML(presentation.claims_for_review_html(canonical))
-                        review = gr.Button("+ Review Claims" if can_manage else "View Claims", size="sm")
+                        review = gr.Button(
+                            "+ Review Claims" if can_manage else "View Claims", size="sm"
+                        )
                         gr.HTML('<div class="qc-bar">QC Review Information</div>')
                         gr.HTML(
                             '<div class="qc-review-header"><span>Claim</span><span>QC Review</span><span>QC Review Comment</span><span>Review Areas</span><span>Points</span><span>Reviewed By</span></div>'
@@ -167,15 +183,18 @@ def create_app() -> gr.Blocks:
                             ),
                             [task_id_state, user_state, task_view_revision],
                             [task_rows, notice, task_view_revision],
+                            key=f"task-{task_id}-event-164-click",
                         ).then(
                             notifications.notification_badge,
                             user_state,
                             alert_button,
+                            key=f"task-{task_id}-event-164-then",
                         )
                         delete.click(
                             lambda tid, user: tasks.perform_task_action(tid, "delete", user),
                             [task_id_state, user_state],
                             [task_rows, notice],
+                            key=f"task-{task_id}-event-175-click",
                         )
                         finish.click(
                             lambda tid, user, revision: tasks.perform_task_action_and_refresh_view(
@@ -183,8 +202,13 @@ def create_app() -> gr.Blocks:
                             ),
                             [task_id_state, user_state, task_view_revision],
                             [task_rows, notice, task_view_revision],
+                            key=f"task-{task_id}-event-180-click",
                         )
-                        review.click(lambda: gr.update(visible=True), outputs=work_panel)
+                        review.click(
+                            lambda: gr.update(visible=True),
+                            outputs=work_panel,
+                            key=f"task-{task_id}-event-187-click",
+                        )
 
             refresh = gr.Button("Refresh Tasks", size="sm")
             refresh.click(
@@ -194,7 +218,9 @@ def create_app() -> gr.Blocks:
             )
         with gr.Tab("Reporting", elem_id="reporting") as reporting_tab:
             gr.Markdown("## Reporting")
-            gr.Markdown(f"Case {config.CASE_ID}: tasks, claim reviews, and conversation notes grouped by task.")
+            gr.Markdown(
+                f"Case {config.CASE_ID}: tasks, claim reviews, and conversation notes grouped by task."
+            )
             report_refresh = gr.Button("Refresh Report")
             report_table = gr.HTML(elem_classes="reporting-content")
         report_outputs = report_table
@@ -202,7 +228,10 @@ def create_app() -> gr.Blocks:
         report_refresh.click(reporting.load_report_html, user_state, report_outputs)
         user_state.change(reporting.load_report_html, user_state, report_outputs)
         user_state.change(
-            lambda user: (gr.update(interactive=identity.can_manage(user), value=None), gr.update(visible=False)),
+            lambda user: (
+                gr.update(interactive=identity.can_manage(user), value=None),
+                gr.update(visible=False),
+            ),
             user_state,
             [task_dropdown, review_panel],
         )
