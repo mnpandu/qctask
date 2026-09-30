@@ -27,7 +27,7 @@ def load_report(user):
             notes = conn.execute(
                 """
                 SELECT m.task_id, m.claim_number, m.sender_racf, m.recipient_racf,
-                       m.message_text, m.created_dts::text
+                       m.message_text, to_char(m.created_dts, 'YYYY-MM-DD HH24:MI:SS')
                 FROM pic_master.qc_claim_messages m JOIN pic_master.task t USING (task_id)
                 WHERE t.case_id = %s AND t.status = 'Active'
                 ORDER BY m.created_dts DESC, m.message_id DESC
