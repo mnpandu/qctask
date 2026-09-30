@@ -89,3 +89,24 @@
 .qc-bar { background: #174c7a; color: white; padding: 6px 10px; font-weight: bold; }
 .task-actions button { background: #1764a2; color: white; border-radius: 2px; }
 @media(max-width: 700px) { .task-fields { grid-template-columns: repeat(2, 1fr); } }
+
+/* Stacked task reports use the available width and expand to show every row. */
+.gradio-container { max-width: 100% !important; }
+.reporting-content, .task-reports { width: 100%; }
+.report-task { margin: 0 0 28px; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #fff; color: #172b4d; }
+.report-task h3 { margin: 0 !important; padding: 16px; background: #edf2f7; font-size: 18px; }
+.report-metadata { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; padding: 16px; }
+.report-metadata strong, .report-metadata span { display: block; overflow-wrap: anywhere; }
+.report-metadata strong { font-size: 12px; margin-bottom: 5px; }
+.report-comment { padding: 0 16px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-table-scroll { width: 100%; overflow-x: auto; }
+.report-task table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
+.report-task th, .report-task td { padding: 12px 10px; text-align: left; vertical-align: top; border: 1px solid #e2e8f0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-task th { background: #174c7a; color: #fff; }
+.report-task th:last-child { width: 28%; }
+.report-task th:nth-child(6) { width: 6%; }
+.report-task tbody tr:nth-child(even) { background: #f8fafc; }
+@media(max-width: 800px) {
+ .report-metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+ .report-task table { min-width: 760px; }
+}
