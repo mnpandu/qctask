@@ -169,12 +169,14 @@ def perform_task_action(task_id, action, user=None):
     identity.require_qc_nurse(user)
     try:
         with database.connect_db() as conn:
-            task_service.task_action(conn, task_id, action, user)
+            changed = task_service.task_action(conn, task_id, action, user)
             rows = repository.list_tasks(conn)
     except ValueError as exc:
         raise gr.Error(str(exc)) from None
     except psycopg.Error:
         raise errors.database_error() from None
+    if changed is False:
+        return rows, "This task is already completed. The task view has been refreshed."
     messages = {
         "assign": "Task assigned to you.",
         "delete": "Task deleted.",

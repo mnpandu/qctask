@@ -25,10 +25,22 @@ class RolePermissionTests(unittest.TestCase):
             with self.subTest(action=action):
                 conn = MagicMock()
                 with patch.object(task_service.qc, "lock_task", return_value="Completed") as lock:
-                    with self.assertRaisesRegex(ValueError, "already completed"):
-                        task_service.task_action(conn, 1, action, config.USERS["pandu"])
+                    self.assertFalse(task_service.task_action(conn, 1, action, config.USERS["pandu"]))
                 lock.assert_called_once_with(conn, 1, config.CASE_ID)
                 conn.execute.assert_not_called()
+
+    def test_stale_completed_task_action_refreshes_without_error(self):
+        rows = [[1, "Partial", "Completed"]]
+        for action in ("assign", "finish"):
+            with self.subTest(action=action), patch.object(database, "connect_db"), patch.object(
+                task_service.qc, "lock_task", return_value="Completed"
+            ), patch.object(repository, "list_tasks", return_value=rows):
+                result = tasks.perform_task_action_and_refresh_view(
+                    1, action, config.USERS["pandu"], 2
+                )
+                self.assertEqual(result[0], rows)
+                self.assertIn("already completed", result[1])
+                self.assertEqual(result[2], 3)
 
     def test_both_roles_can_log_in_and_refresh_tasks(self):
         rows = [[1, "QC Nurse Full Review"]]
