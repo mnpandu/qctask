@@ -24,23 +24,123 @@ from qc_app import (
 
 
 class ClaimWorkflowTests(unittest.TestCase):
+    def test_released_unreviewed_claim_keeps_first_review_choices_in_next_task(self):
+        with patch.object(config, "CASE_ID", 9876543208), database.connect_db() as conn:
+            try:
+                claim_id = "TEST-RELEASED-UNREVIEWED"
+                conn.execute(
+                    "INSERT INTO pic_master.claim_details (case_id, claim_number, claim_data) VALUES (%s, %s, %s)",
+                    (config.CASE_ID, claim_id, Jsonb({"Claim ID": claim_id})),
+                )
+                first = task_service.persist_task(conn, config.TASK_TYPES[1], [claim_id], "")
+                task_service.task_action(conn, first, "finish", config.USERS["pandu"])
+                self.assertEqual(qc.review_view(conn, first)[0][0][1], "Released")
+                second = task_service.persist_task(conn, config.TASK_TYPES[1], [claim_id], "")
+                row = qc.review_view(conn, second)[0][0]
+                self.assertFalse(row[2]["hasPreviousReview"])
+                self.assertEqual(qc.review_decision_options(row[1], row[2]),
+                                 (["Agree", "Action Required"], None, True))
+                with self.assertRaises(ValueError):
+                    qc.save_claim_decision(conn, second, config.CASE_ID, claim_id,
+                                           "Re-review", "Complete", "pandu")
+                qc.save_claim_decision(conn, second, config.CASE_ID, claim_id,
+                                       "Agree", "", "pandu")
+                saved = qc.review_view(conn, second)[0][0][2]
+                self.assertEqual(saved["qcReviewComment"], "Completed")
+            finally:
+                conn.rollback()
+
+
+    def test_returned_claim_in_second_task_requires_rereview(self):
+        with patch.object(config, "CASE_ID", 9876543209), database.connect_db() as conn:
+            try:
+                claim_id = "TEST-CROSS-TASK-REVIEW"
+                conn.execute(
+                    "INSERT INTO pic_master.claim_details (case_id, claim_number, claim_data) VALUES (%s, %s, %s)",
+                    (config.CASE_ID, claim_id, Jsonb({"Claim ID": claim_id})),
+                )
+                first = task_service.persist_task(conn, config.TASK_TYPES[1], [claim_id], "")
+                row = qc.review_view(conn, first)[0][0]
+                self.assertEqual(qc.review_decision_options(row[1], row[2])[0], ["Agree", "Action Required"])
+                qc.save_claim_decision(conn, first, config.CASE_ID, claim_id,
+                                       "Action Required", "Return for Correction", "pandu")
+                second = task_service.persist_task(conn, config.TASK_TYPES[1], [claim_id], "")
+                row = qc.review_view(conn, second)[0][0]
+                self.assertEqual(row[1], "Created")
+                self.assertNotIn("qcReview", row[2])
+                self.assertEqual(qc.review_decision_options(row[1], row[2]), (["Re-review"], "Re-review", True))
+                with self.assertRaises(ValueError):
+                    qc.save_claim_decision(conn, second, config.CASE_ID, claim_id,
+                                           "Agree", "Completed", "pandu")
+                qc.save_claim_decision(conn, second, config.CASE_ID, claim_id,
+                                       "Re-review", "Complete", "pandu")
+                self.assertEqual(qc.eligible_claims(conn, config.CASE_ID), [])
+            finally:
+                conn.rollback()
+
+
+    def test_review_choices_depend_on_claim_history(self):
+        self.assertEqual(
+            qc.review_decision_options("Created", {}), (["Agree", "Action Required"], None, True)
+        )
+        for details in (
+            {"qcReview": "Action Required"},
+            {"qcReview": "Re-review", "qcReviewComment": "Return of Correction"},
+        ):
+            self.assertEqual(
+                qc.review_decision_options("Returned for Corrections", details),
+                (["Re-review"], "Re-review", True),
+            )
+        self.assertEqual(
+            qc.review_decision_options("Agree", {"qcReview": "Agree"}), (["Agree"], "Agree", False)
+        )
+        self.assertEqual(
+            qc.review_decision_options(
+                "Completed", {"qcReview": "Re-review", "qcReviewComment": "Complete"}
+            ),
+            (["Re-review"], "Re-review", False),
+        )
+
     def test_review_comment_choices_and_rereview_outcomes(self):
-        self.assertEqual(claims.qc_comment_options("Agree"), {
-            "choices": ["Completed"], "value": "Completed", "interactive": False,
-        })
-        self.assertEqual(claims.qc_comment_options("Action Required")["choices"],
-                         ["Return for Correction", "Response Requested"])
-        self.assertEqual(claims.qc_comment_options("Re-review")["choices"],
-                         ["Return of Correction", "Complete"])
-        for comment, status in (("Return of Correction", "Returned for Corrections"), ("Complete", "Completed")):
+        self.assertEqual(
+            claims.qc_comment_options("Agree"),
+            {
+                "choices": ["Completed"],
+                "value": "Completed",
+                "interactive": False,
+            },
+        )
+        self.assertEqual(
+            claims.qc_comment_options("Action Required")["choices"],
+            ["Return for Correction", "Response Requested"],
+        )
+        self.assertEqual(
+            claims.qc_comment_options("Re-review")["choices"], ["Return of Correction", "Complete"]
+        )
+        for comment, status in (
+            ("Return of Correction", "Returned for Corrections"),
+            ("Complete", "Completed"),
+        ):
             conn = MagicMock()
-            with patch.object(qc, "lock_task"), patch.object(qc, "review_view", return_value=([("C1", status, {}, {})], None)), patch.object(qc, "sync_canonical") as sync:
+            with (
+                patch.object(qc, "lock_task"),
+                patch.object(
+                    qc,
+                    "review_view",
+                    return_value=(
+                        [("C1", "Returned for Corrections", {"qcReview": "Action Required"}, {})],
+                        None,
+                    ),
+                ),
+                patch.object(qc, "sync_canonical") as sync,
+            ):
                 qc.save_claim_decision(conn, 1, 1, "C1", "Re-review", comment, "pandu")
                 self.assertEqual(conn.execute.call_args_list[0].args[1], (status, 1, "C1"))
                 self.assertEqual(sync.call_args.args[4]["qcReviewComment"], comment)
                 with self.assertRaises(ValueError):
-                    qc.save_claim_decision(conn, 1, 1, "C1", "Re-review", "Response Requested", "pandu")
-
+                    qc.save_claim_decision(
+                        conn, 1, 1, "C1", "Re-review", "Response Requested", "pandu"
+                    )
 
     def test_refresh_task_view_forces_render_when_task_rows_are_unchanged(self):
         rows = [[1, "Task", "In Progress"]]
@@ -54,11 +154,12 @@ class ClaimWorkflowTests(unittest.TestCase):
     def test_task_actions_refresh_the_task_view(self):
         rows = [[1, "Task", "Completed"]]
         user = config.USERS["pandu"]
-        with patch.object(
-            tasks, "perform_task_action", return_value=(rows, "Task completed.")
-        ) as action, patch.object(
-            tasks, "refresh_task_heading"
-        ) as refresh_heading:
+        with (
+            patch.object(
+                tasks, "perform_task_action", return_value=(rows, "Task completed.")
+            ) as action,
+            patch.object(tasks, "refresh_task_heading") as refresh_heading,
+        ):
             result = tasks.perform_task_action_and_refresh_view(1, "finish", user, 4)
 
         action.assert_called_once_with(1, "finish", user)

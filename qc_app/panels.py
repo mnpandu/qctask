@@ -29,9 +29,8 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
     for item in presentation.completed_claims(canonical):
         claim_id = item["claimNumber"]
         review_details = item.get("qcReviewDetails", {})
-        saved_decision = review_details["qcReview"]
-        edit_decision_value = (
-            "Action Required" if saved_decision == "Returned for Corrections" else saved_decision
+        decision_choices, edit_decision_value, review_editable = qc.review_decision_options(
+            item.get("qcReviewStatus"), review_details
         )
         with gr.Row(equal_height=True):
             with gr.Column(scale=5, min_width=0):
@@ -66,10 +65,10 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                 )
                 with gr.Row():
                     edit_decision = gr.Dropdown(
-                        choices=list(qc.QC_DECISIONS),
+                        choices=decision_choices,
                         value=edit_decision_value,
                         label="QC Review",
-                        interactive=bindings.can_manage,
+                        interactive=bindings.can_manage and review_editable,
                     )
                     edit_comment = gr.Dropdown(
                         label="QC Review Comment",
@@ -77,7 +76,9 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                             **claims.qc_comment_options(
                                 edit_decision_value, review_details.get("qcReviewComment")
                             ),
-                            "interactive": bindings.can_manage and edit_decision_value != "Agree",
+                            "interactive": bindings.can_manage
+                            and review_editable
+                            and edit_decision_value != "Agree",
                         },
                     )
                 if bindings.can_manage:
@@ -190,10 +191,8 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                         )
                     )
                     claim_id_state = gr.State(claim_id)
-                    saved_decision = review_details.get("qcReview") or (
-                        "Action Required"
-                        if claim_status == "Returned for Corrections"
-                        else claim_status
+                    decision_choices, saved_decision, review_editable = qc.review_decision_options(
+                        claim_status, review_details
                     )
                     categories = gr.CheckboxGroup(
                         choices=list(qc.QC_REVIEW_CATEGORIES),
@@ -203,10 +202,10 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                     )
                     with gr.Row():
                         decision = gr.Dropdown(
-                            choices=list(qc.QC_DECISIONS),
+                            choices=decision_choices,
                             value=saved_decision if saved_decision in qc.QC_DECISIONS else None,
                             label="QC Review",
-                            interactive=bindings.can_manage,
+                            interactive=bindings.can_manage and review_editable,
                         )
                         review_comment = gr.Dropdown(
                             label="QC Review Comment",
@@ -214,7 +213,9 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                                 **claims.qc_comment_options(
                                     saved_decision, review_details.get("qcReviewComment")
                                 ),
-                                "interactive": bindings.can_manage and saved_decision != "Agree",
+                                "interactive": bindings.can_manage
+                                and review_editable
+                                and saved_decision != "Agree",
                             },
                         )
                     if bindings.can_manage:
@@ -227,8 +228,7 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                     save_claim = gr.Button(
                         "Save",
                         variant="primary",
-                        interactive=bindings.can_manage
-                        and claim_status not in qc.REVIEWED_STATUSES,
+                        interactive=bindings.can_manage and review_editable,
                         visible=bindings.can_manage,
                     )
                     claim_notice = gr.Markdown("")

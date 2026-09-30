@@ -147,6 +147,7 @@ def open_claim_editor(task_id, claim_id, user=None):
     if item is None:
         raise gr.Error("This claim is no longer part of the selected task.")
     details = item.get("qcReviewDetails", {})
+    choices, decision, editable = qc.review_decision_options(item.get("qcReviewStatus"), details)
     try:
         with database.connect_db() as conn:
             recipient = messaging_service.claim_note_reply_recipient(
@@ -165,19 +166,16 @@ def open_claim_editor(task_id, claim_id, user=None):
         gr.update(value=presentation.review_area_checked(details, "Other")),
         gr.update(value=details.get("points", "")),
         gr.update(
-            value=(
-                "Action Required"
-                if details.get("qcReview") == "Returned for Corrections"
-                else details.get("qcReview")
-            )
+            choices=choices, value=decision, interactive=identity.can_manage(user) and editable
         ),
         gr.update(
-            **{**qc_comment_options(
-                "Action Required"
-                if details.get("qcReview") == "Returned for Corrections"
-                else details.get("qcReview"),
-                details.get("qcReviewComment"),
-            ), "interactive": identity.can_manage(user) and details.get("qcReview") != "Agree"}
+            **{
+                **qc_comment_options(
+                    decision,
+                    details.get("qcReviewComment") if decision == details.get("qcReview") else None,
+                ),
+                "interactive": identity.can_manage(user) and editable and decision != "Agree",
+            }
         ),
     )
 

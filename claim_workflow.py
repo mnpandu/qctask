@@ -33,7 +33,18 @@ def add_reviews(conn, task_id, case_id, ids):
 def review_view(conn, task_id):
     rows = conn.execute(
         """
-        SELECT c.claim_number, c.qc_status, COALESCE(j.item->'qcReviewDetails', '{}'::jsonb), c.claim_data
+        SELECT c.claim_number, c.qc_status,
+               COALESCE(j.item->'qcReviewDetails', '{}'::jsonb)
+               || jsonb_build_object('hasPreviousReview', EXISTS (
+                   SELECT 1 FROM pic_master.task previous
+                   JOIN pic_master.task_details previous_details USING (task_id)
+                   CROSS JOIN LATERAL jsonb_array_elements(
+                       previous_details.task_canonical->'claimsForReviews'
+                   ) AS previous_claim(item)
+                   WHERE previous.case_id = t.case_id AND previous.task_id < t.task_id
+                     AND previous_claim.item->>'claimNumber' = c.claim_number
+                     AND NULLIF(BTRIM(previous_claim.item->'qcReviewDetails'->>'qcReview'), '') IS NOT NULL
+               )), c.claim_data
         FROM pic_master.task t JOIN pic_master.task_details d ON d.task_id = t.task_id
         CROSS JOIN LATERAL jsonb_array_elements(d.task_canonical->'claimsForReviews')
             WITH ORDINALITY AS j(item, position)
@@ -177,6 +188,17 @@ QC_REVIEW_CATEGORY_FIELDS = {
 }
 
 
+def review_decision_options(status, details):
+    decision = details.get("qcReview")
+    if decision == "Agree" or status == "Agree":
+        return ["Agree"], "Agree", False
+    if decision == "Re-review" and details.get("qcReviewComment") == "Complete":
+        return ["Re-review"], "Re-review", False
+    if decision or details.get("hasPreviousReview") or status == "Returned for Corrections":
+        return ["Re-review"], "Re-review", True
+    return ["Agree", "Action Required"], None, True
+
+
 def save_claim_decision(
     conn,
     task_id,
@@ -202,12 +224,28 @@ def save_claim_decision(
     rows, _ = review_view(conn, task_id)
     if claim_id not in {r[0] for r in rows}:
         raise ValueError("This claim does not belong to the selected task.")
+    current = next(row for row in rows if row[0] == claim_id)
+    choices, _, editable = review_decision_options(current[1], current[2])
+    if decision not in choices or (
+        not editable and decision == "Re-review" and comment != "Complete"
+    ):
+        raise ValueError(
+            "This claim cannot use that review decision. Reconsideration requires Re-review."
+        )
     conn.execute(
         """
         UPDATE pic_master.claim_details SET qc_status = %s, updated_dts = CURRENT_TIMESTAMP
         WHERE case_id = %s AND claim_number = %s
     """,
-        ("Agree" if decision == "Agree" else "Completed" if decision == "Re-review" and comment == "Complete" else "Returned for Corrections", case_id, claim_id),
+        (
+            "Agree"
+            if decision == "Agree"
+            else "Completed"
+            if decision == "Re-review" and comment == "Complete"
+            else "Returned for Corrections",
+            case_id,
+            claim_id,
+        ),
     )
     details = {
         "qcReview": decision,
