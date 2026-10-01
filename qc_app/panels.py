@@ -45,24 +45,30 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                 close_edit = gr.Button("Close", size="sm")
                 gr.Markdown("#### Select Review Areas")
                 gr.Markdown("Check each area that applies to this claim.")
-                edit_areas = gr.CheckboxGroup(
-                    choices=list(qc.QC_REVIEW_CATEGORIES),
-                    value=[
-                        area
-                        for area in qc.QC_REVIEW_CATEGORIES
-                        if presentation.review_area_checked(review_details, area)
-                    ],
-                    label="Review Areas",
-                    show_label=False,
-                    interactive=bindings.can_manage,
-                    elem_classes="qc-area-group",
-                )
-                edit_points = gr.Textbox(
-                    value=review_details.get("points", ""),
-                    label="Points",
-                    interactive=bindings.can_manage,
-                    max_length=100,
-                )
+                with gr.Row(elem_classes="qc-review-areas-row"):
+                    edit_points = gr.Textbox(
+                        value=review_details.get("points", ""),
+                        label="Points",
+                        interactive=bindings.can_manage,
+                        max_length=10,
+                        lines=1,
+                        scale=0,
+                        min_width=0,
+                        elem_classes="qc-review-points",
+                    )
+                    edit_areas = gr.CheckboxGroup(
+                        choices=list(qc.QC_REVIEW_CATEGORIES),
+                        value=[
+                            area
+                            for area in qc.QC_REVIEW_CATEGORIES
+                            if presentation.review_area_checked(review_details, area)
+                        ],
+                        label="Review Areas",
+                        interactive=bindings.can_manage,
+                        scale=1,
+                        min_width=0,
+                        elem_classes="qc-area-group",
+                    )
                 with gr.Row():
                     edit_decision = gr.Dropdown(
                         choices=decision_choices,
@@ -194,12 +200,25 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                     decision_choices, saved_decision, review_editable = qc.review_decision_options(
                         claim_status, review_details
                     )
-                    categories = gr.CheckboxGroup(
-                        choices=list(qc.QC_REVIEW_CATEGORIES),
-                        value=review_details.get("reviewCategories", []),
-                        label="Review Areas",
-                        interactive=bindings.can_manage,
-                    )
+                    with gr.Row(elem_classes="qc-review-areas-row"):
+                        points = gr.Textbox(
+                            value=review_details.get("points", ""),
+                            label="Points",
+                            interactive=bindings.can_manage,
+                            max_length=10,
+                            lines=1,
+                            scale=0,
+                            min_width=0,
+                            elem_classes="qc-review-points",
+                        )
+                        categories = gr.CheckboxGroup(
+                            choices=list(qc.QC_REVIEW_CATEGORIES),
+                            value=review_details.get("reviewCategories", []),
+                            label="Review Areas",
+                            interactive=bindings.can_manage,
+                            scale=1,
+                            min_width=0,
+                        )
                     with gr.Row():
                         decision = gr.Dropdown(
                             choices=decision_choices,
@@ -241,6 +260,7 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                             decision,
                             review_comment,
                             bindings.user_state,
+                            points,
                         ],
                         [claim_notice, claim_panel, save_claim],
                         key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-202-click",

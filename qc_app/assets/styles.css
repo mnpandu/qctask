@@ -20,7 +20,8 @@
 .qc-review-row { display: grid; grid-template-columns: 1.2fr 1fr 1.5fr 2fr .7fr 1.2fr; gap: 12px; align-items: center; padding: 10px 12px; }
 .qc-review-row small { color: #52677f; }
 .gradio-container .qc-area-group { padding: 12px !important; background: #fff !important; }
-.gradio-container .qc-area-group .wrap { display: flex !important; flex-direction: column; gap: 8px; }
+.gradio-container .qc-area-group .wrap { display: flex !important; flex-direction: row; flex-wrap: nowrap !important; gap: 8px; overflow-x: auto; }
+.gradio-container .qc-area-group .wrap label { flex: 0 0 auto; white-space: nowrap; }
 .gradio-container .qc-area-group label { display: flex !important; min-height: 40px; color: #172b4d !important; background: #f1f5f9 !important; border: 1px solid #94a3b8 !important; }
 .gradio-container .qc-area-group label span { color: #172b4d !important; }
 .gradio-container .qc-area-group input[type="checkbox"] { appearance: auto !important; width: 20px !important; height: 20px !important; opacity: 1 !important; accent-color: #1764a2; }
@@ -86,6 +87,9 @@
 .claim-list-scroll:focus-visible { outline: 2px solid #1764a2; outline-offset: 3px; }
 .claim-number-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 !important; margin: 0 !important; list-style: none !important; }
 .claim-number-list > li { margin: 0 !important; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 4px; background: #f1f5f9; color: #172b4d; font-family: ui-monospace, monospace; font-size: 13px; max-width: 100%; overflow-wrap: anywhere; user-select: text; }
+.qc-review-areas-row { flex-wrap: nowrap !important; align-items: flex-start; }
+.qc-review-points { flex: 0 0 calc(10ch + 32px) !important; width: calc(10ch + 32px) !important; }
+.qc-review-points textarea, .qc-review-points input { font-family: ui-monospace, monospace; }
 .qc-bar { background: #174c7a; color: white; padding: 6px 10px; font-weight: bold; }
 .task-actions button { background: #1764a2; color: white; border-radius: 2px; }
 @media(max-width: 700px) { .task-fields { grid-template-columns: repeat(2, 1fr); } }

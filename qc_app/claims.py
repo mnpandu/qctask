@@ -37,7 +37,7 @@ def update_qc_comment(decision):
     return gr.update(**qc_comment_options(decision))
 
 
-def save_claim_form(task_id, claim_id, categories, decision, comment, user=None):
+def save_claim_form(task_id, claim_id, categories, decision, comment, user=None, points=None):
     identity.require_qc_nurse(user)
     try:
         with database.connect_db() as conn:
@@ -50,6 +50,7 @@ def save_claim_form(task_id, claim_id, categories, decision, comment, user=None)
                 comment,
                 identity.actor_id(user),
                 categories,
+                points,
             )
     except ValueError as exc:
         raise gr.Error(str(exc)) from None
