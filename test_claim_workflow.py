@@ -1,10 +1,10 @@
-"""Integration checks against PostgreSQL; all test data is rolled back."""
+"""Integration checks against Oracle; all test data is rolled back."""
 
 import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from psycopg.types.json import Jsonb
+from qc_app.database import JsonDocument
 
 import claim_workflow as qc
 from qc_app import (
@@ -29,8 +29,8 @@ class ClaimWorkflowTests(unittest.TestCase):
             try:
                 claim_id = "TEST-RELEASED-UNREVIEWED"
                 conn.execute(
-                    "INSERT INTO pic_master.claim_details (case_id, claim_number, claim_data) VALUES (%s, %s, %s)",
-                    (config.CASE_ID, claim_id, Jsonb({"Claim ID": claim_id})),
+                    "INSERT INTO qc_store.qctask_claim_details (case_id, claim_number, claim_data) VALUES (:p1, :p2, :p3)",
+                    (config.CASE_ID, claim_id, JsonDocument({"Claim ID": claim_id})),
                 )
                 first = task_service.persist_task(conn, config.TASK_TYPES[1], [claim_id], "")
                 task_service.task_action(conn, first, "finish", config.USERS["pandu"])
@@ -56,8 +56,8 @@ class ClaimWorkflowTests(unittest.TestCase):
             try:
                 claim_id = "TEST-CROSS-TASK-REVIEW"
                 conn.execute(
-                    "INSERT INTO pic_master.claim_details (case_id, claim_number, claim_data) VALUES (%s, %s, %s)",
-                    (config.CASE_ID, claim_id, Jsonb({"Claim ID": claim_id})),
+                    "INSERT INTO qc_store.qctask_claim_details (case_id, claim_number, claim_data) VALUES (:p1, :p2, :p3)",
+                    (config.CASE_ID, claim_id, JsonDocument({"Claim ID": claim_id})),
                 )
                 first = task_service.persist_task(conn, config.TASK_TYPES[1], [claim_id], "")
                 row = qc.review_view(conn, first)[0][0]
@@ -227,7 +227,7 @@ class ClaimWorkflowTests(unittest.TestCase):
             calls.append((query, params))
             if "SELECT COALESCE(assigned_to" in query:
                 return SimpleNamespace(fetchone=lambda: ("pandu",))
-            if "INSERT INTO pic_master.qc_claim_messages" in query:
+            if "INSERT INTO qc_store.qctask_claim_messages" in query:
                 return SimpleNamespace(fetchone=lambda: (42,))
             return SimpleNamespace(fetchone=lambda: None)
 
@@ -242,7 +242,7 @@ class ClaimWorkflowTests(unittest.TestCase):
             )
 
         notification_rows = [
-            params for query, params in calls if "INSERT INTO pic_master.qc_notifications" in query
+            params for query, params in calls if "INSERT INTO qc_store.qctask_notifications" in query
         ]
         self.assertEqual(
             [params[3] for params in notification_rows],
@@ -461,7 +461,7 @@ class ClaimWorkflowTests(unittest.TestCase):
                 try:
                     self.assertEqual(
                         conn.execute(
-                            "SELECT count(*) FROM pic_master.claim_details WHERE case_id = %s",
+                            "SELECT count(*) FROM qc_store.qctask_claim_details WHERE case_id = :p1",
                             (config.CASE_ID,),
                         ).fetchone()[0],
                         0,
@@ -469,12 +469,12 @@ class ClaimWorkflowTests(unittest.TestCase):
                     claims = [{"Claim ID": f"TEST-CLAIM-{i}"} for i in range(3)]
                     for claim in claims:
                         conn.execute(
-                            "INSERT INTO pic_master.claim_details (case_id, claim_number, claim_data) VALUES (%s, %s, %s)",
-                            (config.CASE_ID, claim["Claim ID"], Jsonb(claim)),
+                            "INSERT INTO qc_store.qctask_claim_details (case_id, claim_number, claim_data) VALUES (:p1, :p2, :p3)",
+                            (config.CASE_ID, claim["Claim ID"], JsonDocument(claim)),
                         )
                     ids = [c["Claim ID"] for c in claims]
                     conn.execute(
-                        "UPDATE pic_master.claim_details SET qc_status = 'Completed' WHERE case_id = %s AND claim_number = %s",
+                        "UPDATE qc_store.qctask_claim_details SET qc_status = 'Completed' WHERE case_id = :p1 AND claim_number = :p2",
                         (config.CASE_ID, ids[2]),
                     )
                     self.assertEqual(len(qc.eligible_claims(conn, config.CASE_ID)), 2)
@@ -522,7 +522,7 @@ class ClaimWorkflowTests(unittest.TestCase):
                     )
                     self.assertEqual(qc.review_view(conn, task_id)[1][2]["notes"], "Check coding")
                     canonical = conn.execute(
-                        "SELECT task_canonical FROM pic_master.task_details WHERE task_id = %s",
+                        "SELECT task_canonical FROM qc_store.qctask_task_details WHERE task_id = :p1",
                         (task_id,),
                     ).fetchone()[0]
                     details = canonical["claimsForReviews"][0]["qcReviewDetails"]
@@ -570,12 +570,12 @@ class ClaimWorkflowTests(unittest.TestCase):
                     self.assertIsNone(qc.review_view(conn, task_id)[1])
                     self.assertEqual(
                         conn.execute(
-                            "SELECT task_status FROM pic_master.task WHERE task_id = %s", (task_id,)
+                            "SELECT task_status FROM qc_store.qctask_task WHERE task_id = :p1", (task_id,)
                         ).fetchone()[0],
                         "Completed",
                     )
                     payload = conn.execute(
-                        "SELECT task_canonical FROM pic_master.task_details WHERE task_id = %s",
+                        "SELECT task_canonical FROM qc_store.qctask_task_details WHERE task_id = :p1",
                         (task_id,),
                     ).fetchone()[0]
                     self.assertTrue(
@@ -583,13 +583,13 @@ class ClaimWorkflowTests(unittest.TestCase):
                     )
                     self.assertEqual(
                         conn.execute(
-                            "SELECT qc_status FROM pic_master.claim_details WHERE case_id = %s AND claim_number = %s",
+                            "SELECT qc_status FROM qc_store.qctask_claim_details WHERE case_id = :p1 AND claim_number = :p2",
                             (config.CASE_ID, ids[0]),
                         ).fetchone()[0],
                         "Completed",
                     )
                     conn.execute(
-                        "UPDATE pic_master.claim_details SET qc_status = NULL WHERE case_id = %s AND claim_number = %s",
+                        "UPDATE qc_store.qctask_claim_details SET qc_status = NULL WHERE case_id = :p1 AND claim_number = :p2",
                         (config.CASE_ID, ids[2]),
                     )
                     partial = task_service.persist_task(

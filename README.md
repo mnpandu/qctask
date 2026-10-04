@@ -1,117 +1,62 @@
-# QC tasks
+# QC tasks ? Oracle
 
-Run `python app.py` to start Gradio with a public share link. Install dependencies
-with `python -m pip install -r requirements.txt` if needed.
+Run from qctask:
 
-## Code structure
-
-`app.py` is the entry point: initialize the database, create the interface, then
-launch it. Importing it does not create Gradio components or connect to PostgreSQL.
-Use `from qc_app.ui import create_app` to build an independent interface in another
-runner or test. Database initialization remains an explicit startup step.
-
-The application is organized by responsibility:
-
-- `qc_app/config.py` and `identity.py`: environment settings, choices, and session identity.
-- `qc_app/database.py` and `repository.py`: connection/schema setup and task read queries.
-- `qc_app/task_service.py` and `messaging_service.py`: mutations using caller-owned transactions.
-- `claim_workflow.py`: claim eligibility, locking, review decisions, and canonical JSON synchronization.
-- `qc_app/tasks.py`, `claims.py`, `messaging.py`, `notifications.py`, and `session.py`:
-  Gradio callbacks, including transaction boundaries and user-facing results.
-- `qc_app/presentation.py`: pure HTML and label formatting with escaped content.
-- `qc_app/ui.py` and `panels.py`: interface composition and claim panel event wiring.
-- `qc_app/assets/`: CSS and JavaScript, loaded relative to the module location.
-
-Services do not import Gradio. They accept an existing connection so related writes
-commit or roll back together. UI callbacks translate workflow errors into Gradio
-messages. Shared configuration is accessed through the config module, so test
-overrides apply consistently across modules.
-
-Run `python -m unittest discover -v` for UI construction checks and the workflow
-suite. The workflow integration test requires the configured PostgreSQL database
-with `schema.sql` already applied; its data changes are rolled back. UI construction
-tests use mocked database access and do not launch a server.
-
-Formatting and import checks are configured in `pyproject.toml`. With Ruff installed,
-run `python -m ruff check .` and `python -m ruff format --check .`.
-
-Sign in as `pandu` (Pandu, QC Nurse) or `regine` (Regine, Nurse). Each browser
-session keeps its own selected user. This is a simple username selector, not
-password-protected authentication; do not expose it publicly for sensitive data.
-Use Sign out before selecting a different user in the same browser.
-
-Claims are read exclusively from `pic_master.claim_details` in PostgreSQL.
-Startup does not import or generate claims. Task creation queries this table for
-the current case's eligible claims: QC status NULL, empty/whitespace, Released, or Returned for Corrections. Creating a task changes
-its claims to Created.
-
-Choose a review type, review claims, enter comments, and click Create. Full review
-includes every eligible claim; partial review lets you choose a subset. Eligibility
-is checked again when saving, with a per-case database lock to prevent duplicate
-reservations from simultaneous task creation.
-
-Click a saved task, then Review Claims. Expand a claim and select QC Review
-(Agree or Returned for Corrections) and QC Review Comment (Completed or Correction Required).
-Choose any applicable Review Areas (Clinical Determination, Generic Reason Code,
-Coding, Decision Remarks, or Other) and enter Points as needed. Save writes the
-decision, comment, selected areas, and points to the task's canonical JSON. The
-last saved review completes the task automatically.
-
-Completed claims appear as rows in QC Review Information with an Edit button on
-each row. Edit opens a popup to change that claim's QC decision/comment or continue
-its conversation. The RACF/user recipient is optional; leaving it blank sends the
-note to the current user. When reopening a conversation, the recipient defaults
-to the previous participant; you can change it before sending. Sending a note stores
-it with the claim and creates an unread in-app alert for that user and the task's
-assigned user. New assignments also create an alert. Alerts appear in the top-right
-button and refresh every 15 seconds. The user name shown in the conversation is the
-selected login name; because login has no password, the app does not verify identity.
-
-## PostgreSQL
-
-Connection defaults: localhost:5432, database postgres, user postgres, password postgres.
-Override using PGHOST, PGPORT, PGDATABASE, PGUSER, and PGPASSWORD.
-
-`schema.sql` defines the PostgreSQL equivalents of the reference tables:
-
-- `pic_master.task`: task metadata, task_status, Active record status, case ID,
-  comments, assignment, and creation/update audit fields.
-- `pic_master.task_details`: a generated task_details_id, task_id foreign key,
-  task_canonical JSONB, Active record status, and audit fields.
-- `pic_master.claim_details`: claim JSON, qc_status, and updated_dts, keyed by case ID and
-  claim number. Review outcomes and notes live only in task_details.task_canonical.
-- `pic_master.qc_claim_messages` and `pic_master.qc_notifications`: per-claim
-  conversation notes and unread in-app alerts only for the note's named recipient.
-
-The claim payload uses this structure (claim numbers remain strings):
-
-```json
-{"claimsForReviews": [{"claimNumber": "DEMO-CLM-0001"}]}
+```powershell
+python -m pip install -r requirements.txt
+python app.py
 ```
 
-Comments and workflow status are columns on task. As claims are reviewed,
-each canonical claim object also receives qcReviewStatus and qcReviewDetails.
-Task, claim, and canonical writes commit in one transaction.
-PostgreSQL JSONB replaces the Oracle CLOB shown in the reference.
+The app loads connection settings from `qctask/.env`; process environment variables
+can override them. Required keys: ORACLE_USER, ORACLE_PASSWORD, ORACLE_DSN,
+ORACLE_SCHEMA. `.env` is excluded from version control. See `.env.example`.
 
-QC_CASE_ID defaults to numeric demo case 1. QC_USER_ID and QC_USER_NAME are
-legacy audit-label fallbacks used for old task migration and non-interactive
-helper calls. Interactive users are identified by the selected Pandu/Regine
-session name; the username-only selector does not authenticate identity.
+At startup, `initialize_db()` creates missing tables and indexes in ORACLE_SCHEMA.
+It checks the Oracle catalog first, so later launches preserve existing objects and
+rows. It does not alter an existing table to match a new schema definition.
+Oracle DDL auto-commits, so initialization runs before workflow transactions.
+`qc_store` in schema.sql and application SQL is a logical qualifier replaced by the
+configured schema by the connection wrapper; run initialization through Python:
 
-On the first schema creation, tasks from the earlier app's public.task and
-public.task_details tables are copied into pic_master with their IDs preserved.
-The earlier tables are left intact. Later launches use pic_master only.
+```powershell
+python -c "from qc_app.database import initialize_db; initialize_db()"
+```
 
-Run `python -m unittest test_claim_workflow -v` for PostgreSQL integration checks.
-Test records are rolled back.
+Tables use a QCTASK_ prefix to coexist with the separate advanced-search tables:
 
-Claim membership and review order live in task_details.task_canonical only.
-claim_details has no task_id or qc_review_order columns. QC status progresses
-from NULL (initial) to Created (task created), then Agree or Returned for Corrections.
-NULL, empty/whitespace, Released, and Returned for Corrections are eligible; Agree is not.
-Delete Task removes both task and task_details rows and sets every linked claim
-to Released, including previously reviewed claims. The deletion and release commit
-in one transaction.
-Task workflow status still starts at Not Started. The schema upgrade removes the
-two obsolete claim columns and preserves claim review details.
+- QCTASK_TASK: task metadata, assignment, status and audit timestamps.
+- QCTASK_TASK_DETAILS: task membership and review details as JSON in a CLOB.
+- QCTASK_CLAIM_DETAILS: claim payload JSON, eligibility/QC status, case and claim key.
+- QCTASK_CLAIM_MESSAGES: per-claim conversations.
+- QCTASK_NOTIFICATIONS: recipient alerts.
+- QCTASK_CASE_LOCKS: one persistent row per case for transaction locking.
+
+Claims are read from QCTASK_CLAIM_DETAILS for QC_CASE_ID (default 1).
+Startup does not generate claims or copy data from another database or app.
+Load your claim records into this table before creating tasks.
+The claim_data document uses the UI keys listed in qc_app/config.py, such as
+"Claim ID", "Provider ID", "Claim Status", and "Billed Amount".
+
+Full reviews reserve all eligible claims; partial reviews reserve selected claims.
+A per-case SELECT FOR UPDATE lock serializes creation and review mutations.
+Changes commit together on success and roll back on exceptions. JSON review
+processing is performed in Python; CLOBs are materialized before connections close.
+Identity IDs are retrieved with Oracle RETURNING INTO output binds.
+
+The existing UI, role permissions, review decisions, reporting and notifications
+remain available. Select Pandu (QC Nurse) or Regine (Nurse) to sign in. This is a
+username selector, not password authentication. The current launcher uses a public
+Gradio share link.
+
+Run tests after initialization:
+
+```powershell
+python -m unittest discover -v
+```
+
+Workflow integration tests use the configured Oracle database and roll back their
+test records. Unit tests cover permissions, reporting and UI construction.
+
+Code: qc_app/database.py handles connections and schema initialization;
+qc_app/task_service.py and messaging_service.py handle transactions supplied by
+callers; claim_workflow.py implements claim decisions; qc_app/ui.py builds Gradio.

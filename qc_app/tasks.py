@@ -1,7 +1,7 @@
 """Gradio task callbacks and transaction boundaries."""
 
 import gradio as gr
-import psycopg
+import oracledb
 
 import claim_workflow as qc
 
@@ -14,7 +14,7 @@ def refresh_tasks(user=None):
     try:
         with database.connect_db() as conn:
             return repository.list_tasks(conn)
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
 
 
@@ -28,7 +28,7 @@ def prepare_review(task_name):
     try:
         with database.connect_db() as conn:
             available = qc.eligible_claims(conn, config.CASE_ID)
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     claims = [
         [str(claim.get(column, "")) for column in config.CLAIM_COLUMNS] for _, claim in available
@@ -54,7 +54,7 @@ def create_task(task_name, claim_ids, comments, user=None):
             rows = repository.list_tasks(conn)
     except ValueError as exc:
         raise gr.Error(str(exc)) from None
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     return (
         rows,
@@ -75,11 +75,11 @@ def open_task(table, evt: gr.SelectData):
             row = conn.execute(
                 "SELECT t.task_status, COALESCE(t.assigned_to_name, ''), "
                 "COALESCE(t.task_comment, ''), d.task_canonical "
-                "FROM pic_master.task t JOIN pic_master.task_details d ON d.task_id = t.task_id "
-                "WHERE t.task_id = %s AND t.case_id = %s AND t.status = 'Active'",
+                "FROM qc_store.qctask_task t JOIN qc_store.qctask_task_details d ON d.task_id = t.task_id "
+                "WHERE t.task_id = :p1 AND t.case_id = :p2 AND t.status = 'Active'",
                 (task_id, config.CASE_ID),
             ).fetchone()
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     if row is None:
         raise gr.Error("Task no longer exists. Refresh the task list.")
@@ -109,7 +109,7 @@ def save_details(task_id, status, assigned_to, comments, claim_ids, user=None):
             rows = repository.list_tasks(conn)
     except ValueError as exc:
         raise gr.Error(str(exc)) from None
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     return rows, details, f"Task {task_id} updated."
 
@@ -117,8 +117,8 @@ def save_details(task_id, status, assigned_to, comments, claim_ids, user=None):
 def review_outputs(conn, task_id):
     rows, current = qc.review_view(conn, task_id)
     status, canonical = conn.execute(
-        "SELECT t.task_status, d.task_canonical FROM pic_master.task t "
-        "JOIN pic_master.task_details d ON d.task_id = t.task_id WHERE t.task_id = %s",
+        "SELECT t.task_status, d.task_canonical FROM qc_store.qctask_task t "
+        "JOIN qc_store.qctask_task_details d ON d.task_id = t.task_id WHERE t.task_id = :p1",
         (task_id,),
     ).fetchone()
     queue = [[r[0], r[1], r[2].get("outcome", ""), r[2].get("notes", "")] for r in rows]
@@ -161,7 +161,7 @@ def run_review(action, task_id, claim_id=None, outcome="", notes="", user=None):
             return review_outputs(conn, task_id)
     except ValueError as exc:
         raise gr.Error(str(exc)) from None
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
 
 
@@ -173,7 +173,7 @@ def perform_task_action(task_id, action, user=None):
             rows = repository.list_tasks(conn)
     except ValueError as exc:
         raise gr.Error(str(exc)) from None
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     if changed is False:
         return rows, "This task is already completed. The task view has been refreshed."

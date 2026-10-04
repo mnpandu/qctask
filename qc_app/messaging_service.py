@@ -9,10 +9,10 @@ def claim_note_reply_recipient(conn, task_id, claim_id, current_actor=None):
     last_message = conn.execute(
         """
         SELECT sender_racf, recipient_racf
-        FROM pic_master.qc_claim_messages
-        WHERE task_id = %s AND claim_number = %s
+        FROM qc_store.qctask_claim_messages
+        WHERE task_id = :p1 AND claim_number = :p2
         ORDER BY created_dts DESC, message_id DESC
-        LIMIT 1
+        FETCH FIRST 1 ROWS ONLY
     """,
         (task_id, claim_id),
     ).fetchone()
@@ -32,8 +32,8 @@ def persist_claim_note(conn, task_id, claim_id, recipient, message, user=None):
         raise ValueError("This claim does not belong to the selected task.")
     task = conn.execute(
         """
-        SELECT COALESCE(assigned_to, '') FROM pic_master.task
-        WHERE task_id = %s AND case_id = %s
+        SELECT COALESCE(assigned_to, '') FROM qc_store.qctask_task
+        WHERE task_id = :p1 AND case_id = :p2
     """,
         (task_id, config.CASE_ID),
     ).fetchone()
@@ -42,9 +42,9 @@ def persist_claim_note(conn, task_id, claim_id, recipient, message, user=None):
     assigned_racf = task[0]
     message_id = conn.execute(
         """
-        INSERT INTO pic_master.qc_claim_messages
+        INSERT INTO qc_store.qctask_claim_messages
             (task_id, claim_number, sender_racf, recipient_racf, assigned_racf, message_text)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        VALUES (:p1, :p2, :p3, :p4, :p5, :p6)
         RETURNING message_id
     """,
         (task_id, claim_id, identity.actor_id(user), recipient, assigned_racf or None, message),
@@ -52,9 +52,9 @@ def persist_claim_note(conn, task_id, claim_id, recipient, message, user=None):
     for user in notification_recipients(recipient):
         conn.execute(
             """
-        INSERT INTO pic_master.qc_notifications
+        INSERT INTO qc_store.qctask_notifications
             (message_id, task_id, claim_number, recipient_racf, notification_text)
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES (:p1, :p2, :p3, :p4, :p5)
     """,
             (message_id, task_id, claim_id, user, message),
         )

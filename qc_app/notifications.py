@@ -3,7 +3,7 @@
 from html import escape
 
 import gradio as gr
-import psycopg
+import oracledb
 
 from . import database, errors, identity
 
@@ -16,15 +16,15 @@ def notifications_html(user=None):
                 """
                 SELECT n.notification_id, n.task_id, COALESCE(n.claim_number, ''),
                        COALESCE(m.sender_racf, 'System'), n.notification_text, n.created_dts
-                FROM pic_master.qc_notifications n
-                LEFT JOIN pic_master.qc_claim_messages m USING (message_id)
-                WHERE n.recipient_racf = %s AND n.read_dts IS NULL
+                FROM qc_store.qctask_notifications n
+                LEFT JOIN qc_store.qctask_claim_messages m ON m.message_id = n.message_id
+                WHERE n.recipient_racf = :p1 AND n.read_dts IS NULL
                 ORDER BY n.created_dts DESC, n.notification_id DESC
-                LIMIT 50
+                FETCH FIRST 50 ROWS ONLY
             """,
                 (current_actor,),
             ).fetchall()
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     if not rows:
         return '<p class="qc-empty">No unread alerts.</p>'
@@ -56,12 +56,12 @@ def notification_badge(user=None):
         with database.connect_db() as conn:
             count = conn.execute(
                 """
-                SELECT count(*) FROM pic_master.qc_notifications
-                WHERE recipient_racf = %s AND read_dts IS NULL
+                SELECT count(*) FROM qc_store.qctask_notifications
+                WHERE recipient_racf = :p1 AND read_dts IS NULL
             """,
                 (identity.actor_id(user),),
             ).fetchone()[0]
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     return gr.update(value=f"Alerts ({count})")
 
@@ -81,11 +81,11 @@ def mark_notifications_read(user=None):
         with database.connect_db() as conn:
             conn.execute(
                 """
-                UPDATE pic_master.qc_notifications SET read_dts = CURRENT_TIMESTAMP
-                WHERE recipient_racf = %s AND read_dts IS NULL
+                UPDATE qc_store.qctask_notifications SET read_dts = CURRENT_TIMESTAMP
+                WHERE recipient_racf = :p1 AND read_dts IS NULL
             """,
                 (identity.actor_id(user),),
             )
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     return notifications_html(user), notification_badge(user)

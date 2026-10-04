@@ -78,7 +78,7 @@ class ApplicationStructureTests(unittest.TestCase):
             database.initialize_db()
         schema = connection.execute.call_args_list[1].args[0]
         self.assertIn("CREATE TABLE", schema)
-        self.assertIn("pic_master", schema)
+        self.assertIn("qc_store.qctask_case_locks", schema)
 
     def test_extracted_panels_register_event_chains(self):
         canonical = {

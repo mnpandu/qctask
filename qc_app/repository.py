@@ -10,15 +10,22 @@ def list_tasks(conn):
                COALESCE(t.assigned_to_name, t.assigned_to, 'Unassigned'),
                to_char(t.created_dts, 'YYYY-MM-DD HH24:MI:SS'),
                COALESCE(to_char(t.task_cmpled_dts, 'YYYY-MM-DD HH24:MI:SS'), ''),
-               COALESCE(jsonb_array_length(d.task_canonical->'claimsForReviews'), 0),
+               d.task_canonical,
                COALESCE(t.task_comment, '')
-        FROM pic_master.task t LEFT JOIN pic_master.task_details d ON d.task_id = t.task_id
-        WHERE t.case_id = %s AND t.status = 'Active'
+        FROM qc_store.qctask_task t LEFT JOIN qc_store.qctask_task_details d ON d.task_id = t.task_id
+        WHERE t.case_id = :p1 AND t.status = 'Active'
         ORDER BY t.task_id DESC
     """,
         (config.CASE_ID,),
     ).fetchall()
-    return [list(row) for row in rows]
+    result = []
+    for row in rows:
+        row = list(row)
+        row[6] = len((row[6] or {}).get("claimsForReviews", []))
+        row[5] = row[5] or ""
+        row[7] = row[7] or ""
+        result.append(row)
+    return result
 
 
 def task_metadata(task_id):
@@ -27,8 +34,8 @@ def task_metadata(task_id):
             """
             SELECT COALESCE(t.assigned_to, ''), COALESCE(t.created_by, ''),
                    COALESCE(created_by_name, ''), d.task_canonical
-            FROM pic_master.task t JOIN pic_master.task_details d USING (task_id)
-            WHERE t.task_id = %s AND t.case_id = %s AND t.status = 'Active'
+            FROM qc_store.qctask_task t JOIN qc_store.qctask_task_details d ON d.task_id = t.task_id
+            WHERE t.task_id = :p1 AND t.case_id = :p2 AND t.status = 'Active'
         """,
             (task_id, config.CASE_ID),
         ).fetchone()

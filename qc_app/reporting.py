@@ -2,7 +2,7 @@
 
 from html import escape
 
-import psycopg
+import oracledb
 
 from . import config, database, errors, identity, repository
 
@@ -20,20 +20,20 @@ def load_report(user):
             reviews = conn.execute(
                 """
                 SELECT t.task_id, d.task_canonical
-                FROM pic_master.task t JOIN pic_master.task_details d USING (task_id)
-                WHERE t.case_id = %s AND t.status = 'Active' ORDER BY t.task_id DESC
+                FROM qc_store.qctask_task t JOIN qc_store.qctask_task_details d ON d.task_id = t.task_id
+                WHERE t.case_id = :p1 AND t.status = 'Active' ORDER BY t.task_id DESC
                 """, (config.CASE_ID,)
             ).fetchall()
             notes = conn.execute(
                 """
                 SELECT m.task_id, m.claim_number, m.sender_racf, m.recipient_racf,
                        m.message_text, to_char(m.created_dts, 'YYYY-MM-DD HH24:MI:SS')
-                FROM pic_master.qc_claim_messages m JOIN pic_master.task t USING (task_id)
-                WHERE t.case_id = %s AND t.status = 'Active'
+                FROM qc_store.qctask_claim_messages m JOIN qc_store.qctask_task t ON t.task_id = m.task_id
+                WHERE t.case_id = :p1 AND t.status = 'Active'
                 ORDER BY m.created_dts DESC, m.message_id DESC
                 """, (config.CASE_ID,)
             ).fetchall()
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     reviews_by_task = dict(reviews)
     notes_by_claim = {}

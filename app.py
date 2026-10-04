@@ -5,7 +5,7 @@ from qc_app.ui import create_app
 
 
 def main() -> None:
-    """Initialize PostgreSQL, build the interface, and launch Gradio."""
+    """Initialize Oracle, build the interface, and launch Gradio."""
     initialize_db()
     create_app().launch(share=True)
 

@@ -1,7 +1,7 @@
 """Gradio claim review and editor callbacks."""
 
 import gradio as gr
-import psycopg
+import oracledb
 
 import claim_workflow as qc
 
@@ -54,7 +54,7 @@ def save_claim_form(task_id, claim_id, categories, decision, comment, user=None,
             )
     except ValueError as exc:
         raise gr.Error(str(exc)) from None
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     return (
         f"Claim {claim_id} saved: {decision}.",
@@ -106,7 +106,7 @@ def save_claim_edit_form(
             )
     except ValueError as exc:
         raise gr.Error(str(exc)) from None
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     return (
         f"QC review updated for {claim_id}.",
@@ -154,7 +154,7 @@ def open_claim_editor(task_id, claim_id, user=None):
             recipient = messaging_service.claim_note_reply_recipient(
                 conn, task_id, claim_id, identity.actor_id(user)
             )
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     return (
         gr.update(visible=True),

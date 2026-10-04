@@ -1,13 +1,13 @@
 """Database-backed claim eligibility and sequential QC reviews."""
 
-from psycopg.types.json import Jsonb
+from qc_app.database import JsonDocument
 
 
 def eligible_claims(conn, case_id):
     return conn.execute(
         """
-        SELECT c.claim_number, c.claim_data FROM pic_master.claim_details c
-        WHERE c.case_id = %s AND (c.qc_status IS NULL OR c.qc_status ~ '^[[:space:]]*$' OR c.qc_status IN ('Released', 'Returned for Corrections'))
+        SELECT c.claim_number, c.claim_data FROM qc_store.qctask_claim_details c
+        WHERE c.case_id = :p1 AND (c.qc_status IS NULL OR REGEXP_LIKE(c.qc_status, '^[[:space:]]*$') OR c.qc_status IN ('Released', 'Returned for Corrections'))
         ORDER BY c.claim_number
     """,
         (case_id,),
@@ -18,10 +18,10 @@ def add_reviews(conn, task_id, case_id, ids):
     for claim_id in ids:
         row = conn.execute(
             """
-            UPDATE pic_master.claim_details SET qc_status = 'Created',
+            UPDATE qc_store.qctask_claim_details SET qc_status = 'Created',
                 updated_dts = CURRENT_TIMESTAMP
-            WHERE case_id = %s AND claim_number = %s
-                AND (qc_status IS NULL OR qc_status ~ '^[[:space:]]*$' OR qc_status IN ('Released', 'Returned for Corrections'))
+            WHERE case_id = :p1 AND claim_number = :p2
+                AND (qc_status IS NULL OR REGEXP_LIKE(qc_status, '^[[:space:]]*$') OR qc_status IN ('Released', 'Returned for Corrections'))
             RETURNING claim_number
         """,
             (case_id, claim_id),
@@ -31,39 +31,34 @@ def add_reviews(conn, task_id, case_id, ids):
 
 
 def review_view(conn, task_id):
-    rows = conn.execute(
-        """
-        SELECT c.claim_number, c.qc_status,
-               COALESCE(j.item->'qcReviewDetails', '{}'::jsonb)
-               || jsonb_build_object('hasPreviousReview', EXISTS (
-                   SELECT 1 FROM pic_master.task previous
-                   JOIN pic_master.task_details previous_details USING (task_id)
-                   CROSS JOIN LATERAL jsonb_array_elements(
-                       previous_details.task_canonical->'claimsForReviews'
-                   ) AS previous_claim(item)
-                   WHERE previous.case_id = t.case_id AND previous.task_id < t.task_id
-                     AND previous_claim.item->>'claimNumber' = c.claim_number
-                     AND NULLIF(BTRIM(previous_claim.item->'qcReviewDetails'->>'qcReview'), '') IS NOT NULL
-               )), c.claim_data
-        FROM pic_master.task t JOIN pic_master.task_details d ON d.task_id = t.task_id
-        CROSS JOIN LATERAL jsonb_array_elements(d.task_canonical->'claimsForReviews')
-            WITH ORDINALITY AS j(item, position)
-        JOIN pic_master.claim_details c
-            ON c.case_id = t.case_id AND c.claim_number = j.item->>'claimNumber'
-        WHERE t.task_id = %s ORDER BY j.position
-    """,
-        (task_id,),
-    ).fetchall()
+    task = conn.execute("SELECT t.case_id, d.task_canonical FROM qc_store.qctask_task t JOIN qc_store.qctask_task_details d ON d.task_id = t.task_id WHERE t.task_id = :p1", (task_id,)).fetchone()
+    if task is None:
+        return [], None
+    case_id, canonical = task
+    previous = conn.execute("SELECT d.task_canonical FROM qc_store.qctask_task t JOIN qc_store.qctask_task_details d ON d.task_id = t.task_id WHERE t.case_id = :p1 AND t.task_id < :p2", (case_id, task_id)).fetchall()
+    reviewed = {item.get("claimNumber") for (document,) in previous
+                for item in document.get("claimsForReviews", [])
+                if str(item.get("qcReviewDetails", {}).get("qcReview") or "").strip()}
+    claims = {number: (status, data) for number, status, data in conn.execute(
+        "SELECT claim_number, qc_status, claim_data FROM qc_store.qctask_claim_details WHERE case_id = :p1", (case_id,)).fetchall()}
+    rows = []
+    for item in canonical["claimsForReviews"]:
+        number = item["claimNumber"]
+        if number in claims:
+            status, data = claims[number]
+            details = dict(item.get("qcReviewDetails") or {})
+            details["hasPreviousReview"] = number in reviewed
+            rows.append((number, status, details, data))
     current = next((r for r in rows if r[1] == "In Progress"), None)
     return rows, current
 
 
 def lock_task(conn, task_id, case_id):
-    conn.execute("SELECT pg_advisory_xact_lock(%s)", (case_id,))
+    conn.lock_case(case_id)
     row = conn.execute(
         """
-        SELECT task_status FROM pic_master.task
-        WHERE task_id = %s AND case_id = %s AND status = 'Active' FOR UPDATE
+        SELECT task_status FROM qc_store.qctask_task
+        WHERE task_id = :p1 AND case_id = :p2 AND status = 'Active' FOR UPDATE
     """,
         (task_id, case_id),
     ).fetchone()
@@ -74,7 +69,7 @@ def lock_task(conn, task_id, case_id):
 
 def sync_canonical(conn, task_id, actor, claim_id=None, review_details=None):
     canonical = conn.execute(
-        "SELECT task_canonical FROM pic_master.task_details WHERE task_id = %s FOR UPDATE",
+        "SELECT task_canonical FROM qc_store.qctask_task_details WHERE task_id = :p1 FOR UPDATE",
         (task_id,),
     ).fetchone()[0]
     rows, _ = review_view(conn, task_id)
@@ -88,10 +83,10 @@ def sync_canonical(conn, task_id, actor, claim_id=None, review_details=None):
             item["qcReviewDetails"].update(review_details)
     conn.execute(
         """
-        UPDATE pic_master.task_details SET task_canonical = %s,
-        updated_by = %s, updated_dts = CURRENT_TIMESTAMP WHERE task_id = %s
+        UPDATE qc_store.qctask_task_details SET task_canonical = :p1,
+        updated_by = :p2, updated_dts = CURRENT_TIMESTAMP WHERE task_id = :p3
     """,
-        (Jsonb(canonical), actor, task_id),
+        (JsonDocument(canonical), actor, task_id),
     )
 
 
@@ -108,16 +103,16 @@ def start_next(conn, task_id, case_id, actor):
     claim_id = pending[0]
     conn.execute(
         """
-        UPDATE pic_master.claim_details SET qc_status = 'In Progress',
+        UPDATE qc_store.qctask_claim_details SET qc_status = 'In Progress',
         updated_dts = CURRENT_TIMESTAMP
-        WHERE case_id = %s AND claim_number = %s
+        WHERE case_id = :p1 AND claim_number = :p2
     """,
         (case_id, claim_id),
     )
     conn.execute(
         """
-        UPDATE pic_master.task SET task_status = 'In Progress', updated_by = %s,
-        updated_dts = CURRENT_TIMESTAMP WHERE task_id = %s
+        UPDATE qc_store.qctask_task SET task_status = 'In Progress', updated_by = :p1,
+        updated_dts = CURRENT_TIMESTAMP WHERE task_id = :p2
     """,
         (actor, task_id),
     )
@@ -138,9 +133,9 @@ def save_review(conn, task_id, case_id, claim_id, outcome, notes, complete, acto
     status = "Completed" if complete else "In Progress"
     conn.execute(
         """
-        UPDATE pic_master.claim_details SET qc_status = %s,
+        UPDATE qc_store.qctask_claim_details SET qc_status = :p1,
         updated_dts = CURRENT_TIMESTAMP
-        WHERE case_id = %s AND claim_number = %s
+        WHERE case_id = :p2 AND claim_number = :p3
     """,
         (status, case_id, claim_id),
     )
@@ -150,9 +145,9 @@ def save_review(conn, task_id, case_id, claim_id, outcome, notes, complete, acto
         if next_id is None:
             conn.execute(
                 """
-                UPDATE pic_master.task SET task_status = 'Completed',
+                UPDATE qc_store.qctask_task SET task_status = 'Completed',
                 task_cmpled_dts = CURRENT_TIMESTAMP, updated_dts = CURRENT_TIMESTAMP,
-                updated_by = %s WHERE task_id = %s
+                updated_by = :p1 WHERE task_id = :p2
             """,
                 (actor, task_id),
             )
@@ -234,8 +229,8 @@ def save_claim_decision(
         )
     conn.execute(
         """
-        UPDATE pic_master.claim_details SET qc_status = %s, updated_dts = CURRENT_TIMESTAMP
-        WHERE case_id = %s AND claim_number = %s
+        UPDATE qc_store.qctask_claim_details SET qc_status = :p1, updated_dts = CURRENT_TIMESTAMP
+        WHERE case_id = :p2 AND claim_number = :p3
     """,
         (
             "Agree"
@@ -264,9 +259,9 @@ def save_claim_decision(
     finished = all(r[1] in REVIEWED_STATUSES for r in rows)
     conn.execute(
         """
-        UPDATE pic_master.task SET task_status = %s,
-        task_cmpled_dts = CASE WHEN %s THEN COALESCE(task_cmpled_dts, CURRENT_TIMESTAMP) ELSE NULL END,
-        updated_by = %s, updated_dts = CURRENT_TIMESTAMP WHERE task_id = %s
+        UPDATE qc_store.qctask_task SET task_status = :p1,
+        task_cmpled_dts = CASE WHEN :p2 = 1 THEN COALESCE(task_cmpled_dts, CURRENT_TIMESTAMP) ELSE NULL END,
+        updated_by = :p3, updated_dts = CURRENT_TIMESTAMP WHERE task_id = :p4
     """,
         ("Completed" if finished else "In Progress", finished, actor, task_id),
     )

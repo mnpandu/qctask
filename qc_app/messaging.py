@@ -3,7 +3,7 @@
 from html import escape
 
 import gradio as gr
-import psycopg
+import oracledb
 
 from . import database, errors, identity, messaging_service
 
@@ -14,13 +14,13 @@ def claim_conversation_html(task_id, claim_id):
             rows = conn.execute(
                 """
                 SELECT sender_racf, recipient_racf, message_text, created_dts
-                FROM pic_master.qc_claim_messages
-                WHERE task_id = %s AND claim_number = %s
+                FROM qc_store.qctask_claim_messages
+                WHERE task_id = :p1 AND claim_number = :p2
                 ORDER BY created_dts, message_id
             """,
                 (task_id, claim_id),
             ).fetchall()
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     if not rows:
         return '<p class="qc-empty">No notes in this conversation yet.</p>'
@@ -56,7 +56,7 @@ def send_claim_note_form(task_id, claim_id, recipient, message, user=None):
             messaging_service.persist_claim_note(conn, task_id, claim_id, recipient, message, user)
     except ValueError as exc:
         raise gr.Error(str(exc)) from None
-    except psycopg.Error:
+    except oracledb.Error:
         raise errors.database_error() from None
     return (
         f"Note sent to {recipient}.",

@@ -1,6 +1,6 @@
 """Task mutations within caller-owned transactions."""
 
-from psycopg.types.json import Jsonb
+from qc_app.database import JsonDocument
 
 import claim_workflow as qc
 
@@ -11,7 +11,7 @@ def persist_task(conn, task_name, claim_ids, comments, user=None):
     if task_name not in config.TASK_TYPES:
         raise ValueError("Select a valid review type.")
     # Serialize eligibility checks and reservations for this case.
-    conn.execute("SELECT pg_advisory_xact_lock(%s)", (config.CASE_ID,))
+    conn.lock_case(config.CASE_ID)
     available = {claim_id: data for claim_id, data in qc.eligible_claims(conn, config.CASE_ID)}
     selected = (
         list(available)
@@ -28,10 +28,10 @@ def persist_task(conn, task_name, claim_ids, comments, user=None):
         raise ValueError("Comments must be 4,000 characters or fewer.")
     task_id = conn.execute(
         """
-        INSERT INTO pic_master.task
+        INSERT INTO qc_store.qctask_task
             (task_name, task_status, status, case_id, task_comment,
              task_queue_name, created_by, created_by_name)
-        VALUES (%s, 'Not Started', 'Active', %s, %s, 'QC Nurse', %s, %s)
+        VALUES (:p1, 'Not Started', 'Active', :p2, :p3, 'QC Nurse', :p4, :p5)
         RETURNING task_id
     """,
         (
@@ -45,10 +45,10 @@ def persist_task(conn, task_name, claim_ids, comments, user=None):
     details = {"claimsForReviews": [{"claimNumber": claim_id} for claim_id in selected]}
     conn.execute(
         """
-        INSERT INTO pic_master.task_details (task_id, task_canonical, status, created_by)
-        VALUES (%s, %s, 'Active', %s)
+        INSERT INTO qc_store.qctask_task_details (task_id, task_canonical, status, created_by)
+        VALUES (:p1, :p2, 'Active', :p3)
     """,
-        (task_id, Jsonb(details), identity.actor_id(user)),
+        (task_id, JsonDocument(details), identity.actor_id(user)),
     )
     qc.add_reviews(conn, task_id, config.CASE_ID, selected)
     qc.sync_canonical(conn, task_id, identity.actor_id(user))
@@ -62,13 +62,13 @@ def persist_update(conn, task_id, status, assigned_to, comments, claim_ids=None,
     # Workflow status and claim membership are controlled by the review queue.
     conn.execute(
         """
-        UPDATE pic_master.task SET assigned_to_name = %s, task_comment = %s,
-        updated_by = %s, updated_dts = CURRENT_TIMESTAMP WHERE task_id = %s
+        UPDATE qc_store.qctask_task SET assigned_to_name = :p1, task_comment = :p2,
+        updated_by = :p3, updated_dts = CURRENT_TIMESTAMP WHERE task_id = :p4
     """,
         (assigned_to or None, comments or "", identity.actor_id(user), task_id),
     )
     return conn.execute(
-        "SELECT task_canonical FROM pic_master.task_details WHERE task_id = %s",
+        "SELECT task_canonical FROM qc_store.qctask_task_details WHERE task_id = :p1",
         (task_id,),
     ).fetchone()[0]
 
@@ -81,61 +81,41 @@ def task_action(conn, task_id, action, user=None):
     if action == "assign":
         recipient = identity.actor_id(user)
         previous = conn.execute(
-            "SELECT assigned_to FROM pic_master.task WHERE task_id = %s",
+            "SELECT assigned_to FROM qc_store.qctask_task WHERE task_id = :p1",
             (task_id,),
         ).fetchone()[0]
         conn.execute(
             """
-            UPDATE pic_master.task SET assigned_to = %s, assigned_to_name = %s,
+            UPDATE qc_store.qctask_task SET assigned_to = :p1, assigned_to_name = :p2,
             task_status = 'In Progress', task_cmpled_dts = NULL,
-            updated_by = %s, updated_dts = CURRENT_TIMESTAMP WHERE task_id = %s
+            updated_by = :p3, updated_dts = CURRENT_TIMESTAMP WHERE task_id = :p4
         """,
             (recipient, identity.actor_name(user), recipient, task_id),
         )
         if previous != recipient:
             conn.execute(
                 """
-                INSERT INTO pic_master.qc_notifications
+                INSERT INTO qc_store.qctask_notifications
                     (task_id, recipient_racf, notification_text)
-                VALUES (%s, %s, %s)
+                VALUES (:p1, :p2, :p3)
             """,
                 (task_id, recipient, f"Task {task_id} was assigned to you."),
             )
     elif action == "delete":
-        conn.execute(
-            """
-            UPDATE pic_master.claim_details c SET qc_status = 'Released',
-                updated_dts = CURRENT_TIMESTAMP
-            WHERE c.case_id = %s AND c.claim_number IN (
-                SELECT j->>'claimNumber' FROM pic_master.task_details d,
-                LATERAL jsonb_array_elements(d.task_canonical->'claimsForReviews') j
-                WHERE d.task_id = %s)
-        """,
-            (config.CASE_ID, task_id),
-        )
-        conn.execute("DELETE FROM pic_master.task_details WHERE task_id = %s", (task_id,))
-        conn.execute("DELETE FROM pic_master.task WHERE task_id = %s", (task_id,))
+        for claim_id, _, _, _ in qc.review_view(conn, task_id)[0]:
+            conn.execute("UPDATE qc_store.qctask_claim_details SET qc_status = 'Released', updated_dts = CURRENT_TIMESTAMP WHERE case_id = :p1 AND claim_number = :p2", (config.CASE_ID, claim_id))
+        conn.execute("DELETE FROM qc_store.qctask_task_details WHERE task_id = :p1", (task_id,))
+        conn.execute("DELETE FROM qc_store.qctask_task WHERE task_id = :p1", (task_id,))
     elif action == "finish":
-        conn.execute(
-            """
-            UPDATE pic_master.claim_details c SET qc_status = 'Released',
-                updated_dts = CURRENT_TIMESTAMP
-            WHERE c.case_id = %s AND c.qc_status = 'Created'
-              AND c.claim_number IN (
-                SELECT j->>'claimNumber'
-                FROM pic_master.task t
-                JOIN pic_master.task_details d ON d.task_id = t.task_id,
-                LATERAL jsonb_array_elements(d.task_canonical->'claimsForReviews') j
-                WHERE t.task_id = %s AND t.task_status <> 'Completed')
-        """,
-            (config.CASE_ID, task_id),
-        )
+        for claim_id, claim_status, _, _ in qc.review_view(conn, task_id)[0]:
+            if claim_status == "Created":
+                conn.execute("UPDATE qc_store.qctask_claim_details SET qc_status = 'Released', updated_dts = CURRENT_TIMESTAMP WHERE case_id = :p1 AND claim_number = :p2", (config.CASE_ID, claim_id))
         qc.sync_canonical(conn, task_id, identity.actor_id(user))
         conn.execute(
             """
-            UPDATE pic_master.task SET task_status = 'Completed',
+            UPDATE qc_store.qctask_task SET task_status = 'Completed',
             task_cmpled_dts = COALESCE(task_cmpled_dts, CURRENT_TIMESTAMP),
-            updated_by = %s, updated_dts = CURRENT_TIMESTAMP WHERE task_id = %s
+            updated_by = :p1, updated_dts = CURRENT_TIMESTAMP WHERE task_id = :p2
         """,
             (identity.actor_id(user), task_id),
         )
