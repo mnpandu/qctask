@@ -3,6 +3,7 @@ import json
 import os
 import re
 from pathlib import Path
+
 import oracledb
 from dotenv import load_dotenv
 
@@ -30,7 +31,9 @@ class Result:
 def settings():
     values = {key: os.getenv("ORACLE_" + key.upper()) for key in ("user", "password", "dsn", "schema")}
     values["schema"] = values["schema"] or values["user"]
-    if not all(values.values()):
+    raw_show_sql = os.getenv("SHOW_SQL", "").strip().lower()
+    values["show_sql"] = raw_show_sql in {"1", "true", "yes", "on"}
+    if not all(values[key] for key in ("user", "password", "dsn", "schema")):
         raise ValueError("Configure ORACLE_USER, ORACLE_PASSWORD, ORACLE_DSN and ORACLE_SCHEMA in qctask/.env")
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", values["schema"]):
         raise ValueError("Invalid ORACLE_SCHEMA")
@@ -38,8 +41,8 @@ def settings():
 
 
 class Connection:
-    def __init__(self, raw, schema):
-        self.raw, self.schema = raw, schema
+    def __init__(self, raw, schema, show_sql=False):
+        self.raw, self.schema, self.show_sql = raw, schema, show_sql
 
     def __enter__(self):
         return self
@@ -60,12 +63,15 @@ class Connection:
         sql = sql.replace("qc_store.", self.schema + ".")
         binds = {"p" + str(i): int(value) if isinstance(value, bool) else value
                  for i, value in enumerate(parameters, 1)}
+        if self.show_sql:
+            print(f"SQL: {sql}")
+            if binds:
+                print(f"Binds: {binds}")
         with self.raw.cursor() as cursor:
             for key, value in list(binds.items()):
                 if isinstance(value, JsonDocument):
                     binds[key] = json.dumps(value.obj)
                     cursor.setinputsizes(**{key: oracledb.DB_TYPE_CLOB})
-            # Oracle DML RETURNING uses an explicit output bind.
             returning = re.search(r"\bRETURNING\s+(\w+)\s*$", sql, re.I)
             output = None
             if returning:
@@ -92,7 +98,6 @@ class Connection:
             return Result(rows, count)
 
     def lock_case(self, case_id):
-        # The persistent lock row serializes all workflow changes for one case.
         try:
             self.execute("INSERT INTO qc_store.qctask_case_locks (case_id) VALUES (:p1)", (case_id,))
         except oracledb.IntegrityError as exc:
@@ -103,11 +108,10 @@ class Connection:
 
 def connect_db():
     cfg = settings()
-    return Connection(oracledb.connect(user=cfg["user"], password=cfg["password"], dsn=cfg["dsn"], tcp_connect_timeout=5), cfg["schema"])
+    return Connection(oracledb.connect(user=cfg["user"], password=cfg["password"], dsn=cfg["dsn"], tcp_connect_timeout=5), cfg["schema"], cfg["show_sql"])
 
 
 def initialize_db():
-    # DDL runs only for absent objects, before any workflow transaction.
     with connect_db() as conn:
         for statement in (ROOT / "schema.sql").read_text().split(";"):
             statement = statement.strip()
