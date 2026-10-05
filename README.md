@@ -129,3 +129,10 @@ Receipt Date) from `claim_data.attachments`, and Decision Details from
 source claim metadata above the QC Review controls. Empty attachment lists show
 ?No records to display?; missing decision values show ?. Attachment metadata uses
 `fileName`, `docType`/`documentType`, `workType`, and `receiptDate` keys.
+
+Each task has a Mentor checkbox. Checking or unchecking it immediately saves
+`pic_master.task.mentor` and updates the task audit fields. Both Nurse and QC Nurse
+can change it, including on completed tasks. Existing and new tasks default to unchecked.
+
+Saving points and QC Review or sending a conversation note keeps the claim editor
+open. Use Close at the top of the editor to leave it.

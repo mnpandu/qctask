@@ -113,7 +113,7 @@ def save_claim_edit_form(
         raise errors.database_error() from None
     return (
         f"QC review updated for {claim_id}.",
-        gr.update(visible=False),
+        gr.update(visible=True),
         claim_review_summary_html(task_id, claim_id),
     )
 

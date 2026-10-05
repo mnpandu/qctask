@@ -142,3 +142,14 @@ def task_action(conn, task_id, action, user=None):
     else:
         raise ValueError("Unknown task action.")
     return True
+
+
+def persist_mentor(conn, task_id, mentor, user):
+    if not isinstance(mentor, bool):
+        raise ValueError("Mentor must be checked or unchecked.")
+    qc.lock_task(conn, task_id, config.CASE_ID)
+    conn.execute(
+        "UPDATE pic_master.task SET mentor = %s, updated_by = %s, "
+        "updated_dts = CURRENT_TIMESTAMP WHERE task_id = %s AND case_id = %s",
+        (mentor, identity.actor_id(user), task_id, config.CASE_ID),
+    )

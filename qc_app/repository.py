@@ -33,3 +33,12 @@ def task_metadata(task_id):
             (task_id, config.CASE_ID),
         ).fetchone()
     return row
+
+
+def task_mentor(task_id):
+    with database.connect_db() as conn:
+        row = conn.execute(
+            "SELECT mentor FROM pic_master.task WHERE task_id = %s AND case_id = %s AND status = 'Active'",
+            (task_id, config.CASE_ID),
+        ).fetchone()
+    return bool(row and row[0] is True)

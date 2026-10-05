@@ -206,3 +206,15 @@ def refresh_task_heading(task_id):
         ("Created by Name", creator_name),
     ]
     return presentation.display_fields(fields), gr.update(label=label)
+
+
+def save_task_mentor(task_id, mentor, user=None):
+    identity.require_manage(user)
+    try:
+        with database.connect_db() as conn:
+            task_service.persist_mentor(conn, task_id, mentor, user)
+    except ValueError as exc:
+        raise gr.Error(str(exc)) from None
+    except psycopg.Error:
+        raise errors.database_error() from None
+    return f"Task {task_id}: Mentor {'checked' if mentor else 'unchecked'} saved."

@@ -155,6 +155,19 @@ def create_app() -> gr.Blocks:
                                     delete = gr.Button(
                                         "DELETE TASK", size="sm", interactive=can_manage
                                     )
+                        mentor = gr.Checkbox(
+                            label="Mentor",
+                            value=repository.task_mentor(task_id),
+                            interactive=can_manage,
+                            key=f"task-{task_id}-mentor",
+                        )
+                        mentor_notice = gr.Markdown("")
+                        mentor.input(
+                            tasks.save_task_mentor,
+                            [task_id_state, mentor, user_state],
+                            mentor_notice,
+                            key=f"task-{task_id}-mentor-input",
+                        )
                         gr.Textbox(value=row[7], label="Comments", lines=2, interactive=False)
                         gr.HTML(presentation.claims_for_review_html(canonical))
                         review = gr.Button(

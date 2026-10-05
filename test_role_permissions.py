@@ -100,6 +100,20 @@ class RolePermissionTests(unittest.TestCase):
                         operation()
                 connect.assert_not_called()
 
+    def test_both_roles_can_save_and_clear_task_mentor(self):
+        for user in config.USERS.values():
+            for mentor in (True, False):
+                with self.subTest(user=user["id"], mentor=mentor), patch.object(database, "connect_db") as connect, patch.object(task_service.qc, "lock_task"):
+                    result = tasks.save_task_mentor(1, mentor, user)
+                    conn = connect.return_value.__enter__.return_value
+                    self.assertEqual(conn.execute.call_args.args[1], (mentor, user["id"], 1, config.CASE_ID))
+                    self.assertIn("saved", result)
+
+    def test_unsigned_user_cannot_save_task_mentor(self):
+        with patch.object(database, "connect_db") as connect, self.assertRaises(gr.Error):
+            tasks.save_task_mentor(1, True)
+        connect.assert_not_called()
+
     def test_nurse_can_share_conversation_notes(self):
         nurse = config.USERS["regine"]
         with (

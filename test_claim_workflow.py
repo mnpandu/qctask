@@ -428,6 +428,7 @@ class ClaimWorkflowTests(unittest.TestCase):
             "5",
         )
         self.assertEqual(result[0], "QC review updated for CLM-1.")
+        self.assertTrue(result[1]["visible"])
 
     def test_saving_qc_decision_rejects_unknown_review_areas(self):
         conn = SimpleNamespace(execute=lambda *args, **kwargs: None)

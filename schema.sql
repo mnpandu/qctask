@@ -16,8 +16,11 @@ CREATE TABLE IF NOT EXISTS pic_master.task (
     task_queue_name VARCHAR(50),
     case_id NUMERIC(10, 0) NOT NULL,
     task_comment VARCHAR(4000),
-    created_by_name VARCHAR(200)
+    created_by_name VARCHAR(200),
+    mentor BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+ALTER TABLE pic_master.task ADD COLUMN IF NOT EXISTS mentor BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS pic_master.task_details (
     task_details_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
