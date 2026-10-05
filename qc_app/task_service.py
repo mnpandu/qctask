@@ -116,6 +116,10 @@ def task_action(conn, task_id, action, user=None):
         """,
             (config.CASE_ID, task_id),
         )
+        conn.execute(
+            "DELETE FROM pic_master.task_comments WHERE task_id = %s AND case_id = %s",
+            (task_id, config.CASE_ID),
+        )
         conn.execute("DELETE FROM pic_master.task_details WHERE task_id = %s", (task_id,))
         conn.execute("DELETE FROM pic_master.task WHERE task_id = %s", (task_id,))
     elif action == "finish":

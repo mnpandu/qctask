@@ -49,13 +49,14 @@ def render_comments(rows):
             table = '<table><thead><tr>' + header + '</tr></thead><tbody>' + body + '</tbody></table>'
         metadata = [("Date", date), ("Task ID", task_id), ("Task Name", task_name),
                     ("RACF - Name", actor_label)]
-        fields = '<div class="task-fields">' + "".join(
-            '<div><strong>' + escape(label) + '</strong><span>' + escape(str(value)) + '</span></div>'
+        fields = '<span class="task-comment-metadata">' + "".join(
+            '<span><strong>' + escape(label) + '</strong><span>' + escape(str(value)) + '</span></span>'
             for label, value in metadata
-        ) + '</div>'
-        sections.append('<section class="claim-detail-section"><h4>Task ' + escape(str(task_id))
-                        + ' - ' + escape(event) + '</h4>' + fields
+        ) + '</span>'
+        sections.append('<details class="claim-detail-section task-comment-entry">'
+                        + '<summary>' + fields + '</summary>'
+                        + '<h4>Task ' + escape(str(task_id)) + ' - ' + escape(event) + '</h4>'
                         + '<div class="task-comment-text"><strong>Comments</strong>'
                         + '<p style="white-space: pre-wrap">' + escape(comment) + '</p></div>'
-                        + '<div class="claim-attachment-scroll">' + table + '</div></section>')
+                        + '<div class="claim-attachment-scroll">' + table + '</div></details>')
     return "".join(sections)

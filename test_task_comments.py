@@ -1,6 +1,7 @@
 """Task lifecycle comment persistence and display checks."""
 
 import unittest
+import re
 from unittest.mock import patch
 
 from psycopg.types.json import Jsonb
@@ -55,6 +56,13 @@ class TaskCommentsTests(unittest.TestCase):
                     refreshed = entries()
                     task_service.task_action(conn, task_id, "finish", config.USERS["pandu"])
                     self.assertEqual(entries(), refreshed)
+                    task_service.task_action(conn, task_id, "delete", config.USERS["pandu"])
+                    self.assertEqual(entries(), [])
+                    statuses = conn.execute(
+                        "SELECT qc_status FROM pic_master.claim_details WHERE case_id = %s",
+                        (config.CASE_ID,),
+                    ).fetchall()
+                    self.assertEqual(statuses, [("Released",), ("Released",)])
                 finally:
                     conn.rollback()
 
@@ -65,6 +73,16 @@ class TaskCommentsTests(unittest.TestCase):
               "nursePoints": "3", "reviewAreas": ["Coding"], "finalStatus": "Agree",
               "qcReview": "Agree", "qcComment": "Completed"}], "pandu", "today", "Full Review", "Pandu"),
         ])
+        self.assertEqual(html.count('<details class="claim-detail-section task-comment-entry">'), 2)
+        self.assertNotIn('<details open', html)
+        summaries = re.findall(r'<summary>(.*?)</summary>', html, re.S)
+        self.assertEqual(len(summaries), 2)
+        for summary in summaries:
+            for label in ("Date", "Task ID", "Task Name", "RACF - Name"):
+                self.assertIn(label, summary)
+            self.assertNotIn("Comments", summary)
+            self.assertNotIn("Final Status", summary)
+            self.assertNotIn("Created", summary)
         self.assertIn("Task 1 - Created", html)
         self.assertIn("Full Review", html)
         self.assertIn("regine - Regine", html)
