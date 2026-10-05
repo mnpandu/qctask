@@ -139,3 +139,5 @@
 .claim-decision-details .task-fields > div:last-child { grid-column: 1 / -1; }
 .claim-decision-details .task-fields span { white-space: pre-wrap; overflow-wrap: anywhere; }
 @media(max-width: 900px) { .claim-decision-details .task-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.task-comment-text { padding: 0 12px 12px; }

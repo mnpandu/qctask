@@ -21,17 +21,6 @@
             }));
         });
     };
-    const openReporting = () => {
-        if (window.location.hash !== '#reporting') return;
-        const tab = [...document.querySelectorAll('button[role="tab"]')]
-            .find(button => button.textContent.trim() === 'Reporting');
-        if (tab && tab.getAttribute('aria-selected') !== 'true') tab.click();
-    };
-    window.addEventListener('hashchange', openReporting);
-    document.addEventListener('click', event => {
-        if (event.target.closest('a[href="#reporting"]')) setTimeout(openReporting, 0);
-    });
-    setTimeout(openReporting, 500);
     let scheduled = false;
     new MutationObserver(() => {
         if (scheduled) return;

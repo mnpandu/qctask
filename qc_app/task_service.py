@@ -3,6 +3,7 @@
 from psycopg.types.json import Jsonb
 
 import claim_workflow as qc
+import task_comments
 
 from . import config, identity
 
@@ -52,6 +53,7 @@ def persist_task(conn, task_name, claim_ids, comments, user=None):
     )
     qc.add_reviews(conn, task_id, config.CASE_ID, selected)
     qc.sync_canonical(conn, task_id, identity.actor_id(user))
+    task_comments.record_creation(conn, task_id, identity.actor_id(user), identity.actor_name(user))
     return task_id
 
 
@@ -67,6 +69,7 @@ def persist_update(conn, task_id, status, assigned_to, comments, claim_ids=None,
     """,
         (assigned_to or None, comments or "", identity.actor_id(user), task_id),
     )
+    task_comments.refresh_existing(conn, task_id, identity.actor_id(user))
     return conn.execute(
         "SELECT task_canonical FROM pic_master.task_details WHERE task_id = %s",
         (task_id,),
@@ -139,6 +142,7 @@ def task_action(conn, task_id, action, user=None):
         """,
             (identity.actor_id(user), task_id),
         )
+        task_comments.record_completion(conn, task_id, identity.actor_id(user), identity.actor_name(user))
     else:
         raise ValueError("Unknown task action.")
     return True

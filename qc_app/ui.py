@@ -8,11 +8,11 @@ import claim_workflow as qc
 
 from . import (
     config,
+    comments as task_comments_view,
     identity,
     notifications,
     panels,
     presentation,
-    reporting,
     repository,
     session,
     tasks,
@@ -47,7 +47,6 @@ def create_app() -> gr.Blocks:
                     filterable=False,
                 )
                 login_button = gr.Button("Sign in", variant="primary")
-        gr.HTML('<a href="#reporting">Reporting</a>')
         user_banner = gr.Markdown("", elem_classes="qc-user-name")
         with gr.Row(elem_classes="qc-user-bar"):
             alert_button = gr.Button("Alerts (0)", size="sm")
@@ -229,17 +228,13 @@ def create_app() -> gr.Blocks:
                 [user_state, task_view_revision],
                 [task_rows, task_view_revision],
             )
-        with gr.Tab("Reporting", elem_id="reporting") as reporting_tab:
-            gr.Markdown("## Reporting")
-            gr.Markdown(
-                f"Case {config.CASE_ID}: tasks, claim reviews, and conversation notes grouped by task."
-            )
-            report_refresh = gr.Button("Refresh Report")
-            report_table = gr.HTML(elem_classes="reporting-content")
-        report_outputs = report_table
-        reporting_tab.select(reporting.load_report_html, user_state, report_outputs)
-        report_refresh.click(reporting.load_report_html, user_state, report_outputs)
-        user_state.change(reporting.load_report_html, user_state, report_outputs)
+        with gr.Tab("Comments") as comments_tab:
+            gr.Markdown("## Task Comments")
+            comments_refresh = gr.Button("Refresh Comments")
+            comments_table = gr.HTML()
+        comments_tab.select(task_comments_view.load_comments_html, user_state, comments_table)
+        comments_refresh.click(task_comments_view.load_comments_html, user_state, comments_table)
+        user_state.change(task_comments_view.load_comments_html, user_state, comments_table)
         user_state.change(
             lambda user: (
                 gr.update(interactive=identity.can_manage(user), value=None),

@@ -136,3 +136,11 @@ can change it, including on completed tasks. Existing and new tasks default to u
 
 Saving points and QC Review or sending a conversation note keeps the claim editor
 open. Use Close at the top of the editor to leave it.
+
+The Comments tab shows `pic_master.task_comments`: one creation entry containing
+its task comment, and one completion entry containing a snapshot of reviewed
+claims only (claim number, Contract Points, Nurse Points, review areas, final
+status, QC decision and comment). Claim saves add no entry while work is in
+progress. Automatic completion on the last reviewed claim and Complete Task both
+record the snapshot in the same transaction. Later edits refresh the existing completion summary without adding another entry. Comments retain their task ID even if the task is deleted. The tab
+loads when selected and has Refresh Comments. Existing tasks are not backfilled. Task comment edits also refresh their existing creation entry.

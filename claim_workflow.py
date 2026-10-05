@@ -2,6 +2,8 @@
 
 from psycopg.types.json import Jsonb
 
+import task_comments
+
 
 def eligible_claims(conn, case_id):
     return conn.execute(
@@ -145,6 +147,7 @@ def save_review(conn, task_id, case_id, claim_id, outcome, notes, complete, acto
         (status, case_id, claim_id),
     )
     sync_canonical(conn, task_id, actor, claim_id, details)
+    task_comments.refresh_existing(conn, task_id, actor)
     if complete:
         next_id = start_next(conn, task_id, case_id, actor)
         if next_id is None:
@@ -157,6 +160,8 @@ def save_review(conn, task_id, case_id, claim_id, outcome, notes, complete, acto
                 (actor, task_id),
             )
     sync_canonical(conn, task_id, actor)
+    if complete and next_id is None:
+        task_comments.record_completion(conn, task_id, actor)
 
 
 QC_COMMENT_OPTIONS = {
@@ -264,6 +269,7 @@ def save_claim_decision(
     if nurse_points is not None:
         details["nursePoints"] = nurse_points
     sync_canonical(conn, task_id, actor, claim_id, details)
+    task_comments.refresh_existing(conn, task_id, actor)
     rows, _ = review_view(conn, task_id)
     finished = all(r[1] in REVIEWED_STATUSES for r in rows)
     conn.execute(
@@ -274,3 +280,6 @@ def save_claim_decision(
     """,
         ("Completed" if finished else "In Progress", finished, actor, task_id),
     )
+
+    if finished:
+        task_comments.record_completion(conn, task_id, actor)
