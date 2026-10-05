@@ -57,13 +57,14 @@ class RolePermissionTests(unittest.TestCase):
                     self.assertEqual(result[3], rows)
                     self.assertEqual(tasks.refresh_task_view(user, 0), (rows, 1))
 
-    def test_only_registered_qc_nurse_can_manage(self):
-        self.assertTrue(identity.can_manage(config.USERS["pandu"]))
-        for user in (None, config.USERS["regine"], {**config.USERS["regine"], "role": "QC Nurse"}):
+    def test_both_registered_roles_can_manage(self):
+        for user in config.USERS.values():
+            self.assertTrue(identity.can_manage(user))
+            self.assertEqual(identity.require_manage(user), user)
+        for user in (None, {**config.USERS["regine"], "role": "QC Nurse"}):
             self.assertFalse(identity.can_manage(user))
 
-    def test_nurse_mutations_rejected_before_database_access(self):
-        nurse = config.USERS["regine"]
+    def mutation_operations(self, nurse):
         operations = [
             lambda: tasks.create_task(config.TASK_TYPES[0], [], "", nurse),
             lambda: tasks.save_details(1, "", "", "", [], nurse),
@@ -77,11 +78,27 @@ class RolePermissionTests(unittest.TestCase):
             lambda action=action: tasks.perform_task_action(1, action, nurse)
             for action in ("assign", "finish", "delete")
         )
-        with patch.object(database, "connect_db") as connect:
-            for operation in operations:
-                with self.subTest(operation=operation), self.assertRaises(gr.Error):
-                    operation()
-            connect.assert_not_called()
+        return operations
+
+    def test_both_roles_can_reach_mutation_database_access(self):
+        class DatabaseReached(Exception):
+            pass
+
+        for user in config.USERS.values():
+            with patch.object(database, "connect_db", side_effect=DatabaseReached) as connect:
+                for operation in self.mutation_operations(user):
+                    with self.subTest(user=user["id"], operation=operation):
+                        with self.assertRaises(DatabaseReached):
+                            operation()
+                self.assertEqual(connect.call_count, 10)
+
+    def test_unregistered_mutations_rejected_before_database_access(self):
+        for user in (None, {**config.USERS["regine"], "role": "QC Nurse"}):
+            with patch.object(database, "connect_db") as connect:
+                for operation in self.mutation_operations(user):
+                    with self.subTest(user=user, operation=operation), self.assertRaises(gr.Error):
+                        operation()
+                connect.assert_not_called()
 
     def test_nurse_can_share_conversation_notes(self):
         nurse = config.USERS["regine"]

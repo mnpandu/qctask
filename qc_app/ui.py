@@ -162,7 +162,7 @@ def create_app() -> gr.Blocks:
                         )
                         gr.HTML('<div class="qc-bar">QC Review Information</div>')
                         gr.HTML(
-                            '<div class="qc-review-header"><span>Claim</span><span>QC Review</span><span>QC Review Comment</span><span>Review Areas</span><span>Points</span><span>Reviewed By</span></div>'
+                            '<div class="qc-review-header"><span>Claim</span><span>QC Review</span><span>QC Review Comment</span><span>Review Areas</span><span>Contract Points</span><span>Nurse Points</span><span>Reviewed By</span></div>'
                         )
                         bindings = panels.TaskViewBindings(
                             task_id_state=task_id_state,

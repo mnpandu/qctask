@@ -39,6 +39,9 @@ Sign in as `pandu` (Pandu, QC Nurse) or `regine` (Regine, Nurse). Each browser
 session keeps its own selected user. This is a simple username selector, not
 password-protected authentication; do not expose it publicly for sensitive data.
 Use Sign out before selecting a different user in the same browser.
+Both Nurse and QC Nurse roles can perform all task and claim review operations,
+including creating, editing, assigning, completing, and deleting tasks, saving QC
+reviews, and sharing conversation notes.
 
 Claims are read exclusively from `pic_master.claim_details` in PostgreSQL.
 Startup does not import or generate claims. Task creation queries this table for
@@ -50,15 +53,19 @@ includes every eligible claim; partial review lets you choose a subset. Eligibil
 is checked again when saving, with a per-case database lock to prevent duplicate
 reservations from simultaneous task creation.
 
-Click a saved task, then Review Claims. Expand a claim and select QC Review
+Click a saved task, then Review Claims. Each clickable claim row in the popup displays Claim #,
+No of Lines, DOS From / To, MBI, Focus Code, PTAN, NPI, Resp Rcvd, Claim Decision,
+QC Review, ADR Sent Date, and TOB from its existing claim JSON. Missing metadata
+is displayed as ?. Click a claim row to expand its existing details and review controls. Expand a claim and select QC Review
 (Agree or Returned for Corrections) and QC Review Comment (Completed or Correction Required).
 Choose any applicable Review Areas (Clinical Determination, Generic Reason Code,
-Coding, Decision Remarks, or Other) and enter Points as needed. Save writes the
-decision, comment, selected areas, and points to the task's canonical JSON. The
+Coding, Decision Remarks, or Other) and enter Contract Points and Nurse Points as needed. Save writes the
+decision, comment, selected areas, and both points fields to the task's canonical JSON. The
 last saved review completes the task automatically.
 
 Completed claims appear as rows in QC Review Information with an Edit button on
-each row. Edit opens a popup to change that claim's QC decision/comment or continue
+each row. Agreed claims remain editable: both roles can update review areas and
+points or change Agree to Action Required. Edit opens a popup to change that claim's QC decision/comment or continue
 its conversation. The RACF/user recipient is optional; leaving it blank sends the
 note to the current user. When reopening a conversation, the recipient defaults
 to the previous participant; you can change it before sending. Sending a note stores
@@ -115,3 +122,10 @@ to Released, including previously reviewed claims. The deletion and release comm
 in one transaction.
 Task workflow status still starts at Not Started. The schema upgrade removes the
 two obsolete claim columns and preserves claim review details.
+
+Expanded claims include an Attachments table (File Name, Doc Type, Work Type,
+Receipt Date) from `claim_data.attachments`, and Decision Details from
+`claim_data.decisionDetails` or matching top-level fields. These sections display
+source claim metadata above the QC Review controls. Empty attachment lists show
+?No records to display?; missing decision values show ?. Attachment metadata uses
+`fileName`, `docType`/`documentType`, `workType`, and `receiptDate` keys.

@@ -79,27 +79,78 @@ class ClaimWorkflowTests(unittest.TestCase):
                 conn.rollback()
 
 
+    def test_same_task_action_required_can_be_changed_without_rereview(self):
+        with patch.object(config, "CASE_ID", 9876543210), database.connect_db() as conn:
+            try:
+                claim_id = "TEST-SAME-TASK-EDIT"
+                conn.execute(
+                    "INSERT INTO pic_master.claim_details (case_id, claim_number, claim_data) VALUES (%s, %s, %s)",
+                    (config.CASE_ID, claim_id, Jsonb({"Claim ID": claim_id})),
+                )
+                task_id = task_service.persist_task(conn, config.TASK_TYPES[1], [claim_id], "")
+                qc.save_claim_decision(conn, task_id, config.CASE_ID, claim_id,
+                                       "Action Required", "Return for Correction", "pandu")
+                row = qc.review_view(conn, task_id)[0][0]
+                self.assertFalse(row[2]["hasPreviousReview"])
+                self.assertEqual(qc.review_decision_options(row[1], row[2]),
+                                 (["Agree", "Action Required"], "Action Required", True))
+                with self.assertRaises(ValueError):
+                    qc.save_claim_decision(conn, task_id, config.CASE_ID, claim_id,
+                                           "Re-review", "Complete", "regine")
+                qc.save_claim_decision(conn, task_id, config.CASE_ID, claim_id,
+                                       "Agree", "Completed", "regine")
+                self.assertEqual(qc.review_view(conn, task_id)[0][0][2]["qcReview"], "Agree")
+            finally:
+                conn.rollback()
+
     def test_review_choices_depend_on_claim_history(self):
         self.assertEqual(
             qc.review_decision_options("Created", {}), (["Agree", "Action Required"], None, True)
         )
+        self.assertEqual(
+            qc.review_decision_options("Returned for Corrections", {"qcReview": "Action Required"}),
+            (["Agree", "Action Required"], "Action Required", True),
+        )
         for details in (
-            {"qcReview": "Action Required"},
-            {"qcReview": "Re-review", "qcReviewComment": "Return of Correction"},
+            {"qcReview": "Action Required", "hasPreviousReview": True},
+            {"qcReview": "Re-review", "qcReviewComment": "Return of Correction", "hasPreviousReview": True},
         ):
             self.assertEqual(
                 qc.review_decision_options("Returned for Corrections", details),
                 (["Re-review"], "Re-review", True),
             )
         self.assertEqual(
-            qc.review_decision_options("Agree", {"qcReview": "Agree"}), (["Agree"], "Agree", False)
+            qc.review_decision_options("Agree", {"qcReview": "Agree"}), (["Agree", "Action Required"], "Agree", True)
         )
         self.assertEqual(
             qc.review_decision_options(
-                "Completed", {"qcReview": "Re-review", "qcReviewComment": "Complete"}
+                "Completed", {"qcReview": "Re-review", "qcReviewComment": "Complete", "hasPreviousReview": True}
             ),
             (["Re-review"], "Re-review", False),
         )
+
+    def test_both_roles_can_edit_agreed_claim(self):
+        for user in config.USERS.values():
+            with self.subTest(user=user["id"]):
+                conn = MagicMock()
+                rows = [("CLM-1", "Agree", {"qcReview": "Agree"}, {})]
+                with (
+                    patch.object(database, "connect_db") as connect,
+                    patch.object(qc, "lock_task"),
+                    patch.object(qc, "review_view", return_value=(rows, None)),
+                    patch.object(qc, "sync_canonical") as sync,
+                ):
+                    connect.return_value.__enter__.return_value = conn
+                    claims.save_claim_form(
+                        12, "CLM-1", ["Coding"], "Action Required",
+                        "Return for Correction", user, "5"
+                    )
+                details = sync.call_args.args[4]
+                self.assertEqual(details["qcReview"], "Action Required")
+                self.assertEqual(details["reviewedBy"], user["id"])
+                self.assertEqual(details["points"], "5")
+                self.assertEqual(details["reviewCategories"], ["Coding"])
+                self.assertEqual(conn.execute.call_args_list[0].args[1][0], "Returned for Corrections")
 
     def test_review_comment_choices_and_rereview_outcomes(self):
         self.assertEqual(
@@ -128,7 +179,7 @@ class ClaimWorkflowTests(unittest.TestCase):
                     qc,
                     "review_view",
                     return_value=(
-                        [("C1", "Returned for Corrections", {"qcReview": "Action Required"}, {})],
+                        [("C1", "Returned for Corrections", {"qcReview": "Action Required", "hasPreviousReview": True}, {})],
                         None,
                     ),
                 ),
@@ -392,6 +443,19 @@ class ClaimWorkflowTests(unittest.TestCase):
                 ["Unknown category"],
                 "",
             )
+
+    def test_contract_and_nurse_points_save_independently(self):
+        conn = MagicMock()
+        rows = [("CLM-1", "Agree", {"qcReview": "Agree"}, {})]
+        with (
+            patch.object(qc, "lock_task"),
+            patch.object(qc, "review_view", return_value=(rows, None)),
+            patch.object(qc, "sync_canonical") as sync,
+        ):
+            qc.save_claim_decision(conn, 12, 1, "CLM-1", "Agree", "Completed",
+                                   "regine", [], "contract", nurse_points="nurse")
+        self.assertEqual(sync.call_args.args[4]["points"], "contract")
+        self.assertEqual(sync.call_args.args[4]["nursePoints"], "nurse")
 
     def test_regular_qc_save_does_not_overwrite_edit_only_points(self):
         conn = SimpleNamespace(execute=lambda *args, **kwargs: None)

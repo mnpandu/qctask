@@ -10,6 +10,16 @@
                 return cell;
             }));
         });
+        document.querySelectorAll('.claim-review-summary > button.label-wrap > span:not(.icon)').forEach(label => {
+            if (label.children.length) return;
+            const values = label.textContent.split('\t');
+            if (values.length !== 12) return;
+            label.replaceChildren(...values.map(value => {
+                const cell = document.createElement('span');
+                cell.textContent = value;
+                return cell;
+            }));
+        });
     };
     const openReporting = () => {
         if (window.location.hash !== '#reporting') return;

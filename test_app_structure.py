@@ -34,6 +34,43 @@ class ApplicationStructureTests(unittest.TestCase):
             LocalContext.blocks_config.reset(token)
 
 
+    def test_review_claim_metadata_matches_reference_and_preserves_values(self):
+        data = {
+            "no_of_lines": 0, "dosFrom": "04/20/2023", "dosTo": "04/21/2023",
+            "MBI": "MBI123", "focusCode": "FC", "PTAN": "396053",
+            "NPI": "1265432165", "responseReceived": "Yes", "claimDecision": "Y",
+            "qcReview": "N", "adrSentDate": "07/12/2023", "typeOfBill": "111",
+        }
+        fields = presentation.review_claim_fields("C1", data)
+        self.assertEqual([label for label, _ in fields[:12]], list(ui.config.REVIEW_CLAIM_FIELDS))
+        self.assertEqual([value for _, value in fields[:12]], [
+            "C1", 0, "04/20/2023 - 04/21/2023", "MBI123", "FC", "396053",
+            "1265432165", "Yes", "Y", "N", "07/12/2023", "111",
+        ])
+        self.assertIn("<span>0</span>", presentation.display_fields(fields))
+        self.assertEqual(dict(presentation.review_claim_fields("C2", {}))["NPI"], "")
+
+    def test_expanded_claim_attachments_and_decision_details(self):
+        data = {"attachments": [{"fileName": "<script>file</script>", "documentType": "Medical",
+                                 "workType": "Review", "receiptDate": "07/12/2023"}],
+                "decisionDetails": {"decision": "Full Denial", "decisionDate": "07/21/2023",
+                                    "genericReasonCode": "GAI02", "denialReason": "59CON",
+                                    "preMROriginalReimbursement": 0, "decisionRemarks": "Full denial"}}
+        attachments = presentation.claim_attachments_html(data)
+        for label in ("File Name", "Doc Type", "Work Type", "Receipt Date"):
+            self.assertIn(label, attachments)
+        self.assertIn("Medical", attachments)
+        self.assertNotIn("<script>", attachments)
+        self.assertIn("&lt;script&gt;file", attachments)
+        self.assertIn("No records to display", presentation.claim_attachments_html({}))
+        details = presentation.claim_decision_details_html(data)
+        for label in ("Decision", "Decision Date", "Associated DCN", "Demand Bill", "Denial Reason",
+                      "Generic Reason Code", "Pre MR Original Reimbursement", "Post MR Original Reimbursement",
+                      "Total Reimbursement Savings", "Decision Remarks"):
+            self.assertIn(label, details)
+        self.assertIn("Full Denial", details)
+        self.assertIn("<span>0</span>", details)
+
     def test_claim_expansion_updates_single_and_multiple_accordions(self):
         for count in (1, 3):
             with self.subTest(claim_count=count):
@@ -109,6 +146,19 @@ class ApplicationStructureTests(unittest.TestCase):
                 ),
             ):
                 review_panel = panels.build_review_panel(1, bindings)
+        self.assertFalse(any(isinstance(block, gr.Dataframe) and block.label == "Claims for Review"
+                             for block in demo.blocks.values()))
+        claim_row = next(block for block in demo.blocks.values()
+                         if isinstance(block, gr.Accordion) and "claim-review-summary" in (block.elem_classes or []))
+        self.assertEqual(len(claim_row.label.split("\t")), 12)
+        self.assertEqual(claim_row.label.split("\t")[0], "CLM-2")
+        self.assertEqual(claim_row.label.split("\t")[9], "Created")
+        self.assertFalse(claim_row.open)
+        claim_html = [block.value for block in claim_row.children if isinstance(block, gr.HTML)]
+        self.assertTrue(any("Attachments" in value for value in claim_html))
+        self.assertTrue(any("Decision Details" in value for value in claim_html))
+        self.assertTrue(any(isinstance(block, gr.HTML) and "claim-review-header" in str(block.value)
+                            for block in demo.blocks.values()))
         self.assertIsInstance(review_panel, gr.Column)
         self.assertFalse(review_panel.visible)
         self.assertGreater(len(demo.config["dependencies"]), 10)
@@ -137,3 +187,5 @@ class ApplicationStructureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

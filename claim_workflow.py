@@ -190,13 +190,12 @@ QC_REVIEW_CATEGORY_FIELDS = {
 
 def review_decision_options(status, details):
     decision = details.get("qcReview")
-    if decision == "Agree" or status == "Agree":
-        return ["Agree"], "Agree", False
-    if decision == "Re-review" and details.get("qcReviewComment") == "Complete":
-        return ["Re-review"], "Re-review", False
-    if decision or details.get("hasPreviousReview") or status == "Returned for Corrections":
-        return ["Re-review"], "Re-review", True
-    return ["Agree", "Action Required"], None, True
+    if details.get("hasPreviousReview"):
+        editable = not (decision == "Re-review" and details.get("qcReviewComment") == "Complete")
+        return ["Re-review"], "Re-review", editable
+    choices = ["Agree", "Action Required"]
+    saved = decision if decision in choices else "Agree" if status == "Agree" else None
+    return choices, saved, True
 
 
 def save_claim_decision(
@@ -209,6 +208,7 @@ def save_claim_decision(
     actor,
     categories=None,
     points=None,
+    nurse_points=None,
 ):
     lock_task(conn, task_id, case_id)
     if decision == "Agree":
@@ -220,7 +220,9 @@ def save_claim_decision(
     if not set(categories).issubset(QC_REVIEW_CATEGORIES):
         raise ValueError("Select valid QC review categories.")
     if points is not None and len(points) > 100:
-        raise ValueError("Points must be 100 characters or fewer.")
+        raise ValueError("Contract Points must be 100 characters or fewer.")
+    if nurse_points is not None and len(nurse_points) > 100:
+        raise ValueError("Nurse Points must be 100 characters or fewer.")
     rows, _ = review_view(conn, task_id)
     if claim_id not in {r[0] for r in rows}:
         raise ValueError("This claim does not belong to the selected task.")
@@ -259,6 +261,8 @@ def save_claim_decision(
     )
     if points is None:
         details.pop("points")
+    if nurse_points is not None:
+        details["nursePoints"] = nurse_points
     sync_canonical(conn, task_id, actor, claim_id, details)
     rows, _ = review_view(conn, task_id)
     finished = all(r[1] in REVIEWED_STATUSES for r in rows)

@@ -20,11 +20,11 @@ def require_user(user):
 
 
 def can_manage(user):
-    return bool(user and config.USERS.get(user.get("id")) == user and user.get("role") == "QC Nurse")
+    return bool(user and config.USERS.get(user.get("id")) == user and user.get("role") in ("Nurse", "QC Nurse"))
 
 
-def require_qc_nurse(user):
+def require_manage(user):
     require_user(user)
     if not can_manage(user):
-        raise gr.Error("Only QC nurses can change tasks or QC reviews. Nurses can view and share conversation notes.")
+        raise gr.Error("Only nurses and QC nurses can change tasks or QC reviews.")
     return user

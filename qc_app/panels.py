@@ -48,7 +48,17 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                 with gr.Row(elem_classes="qc-review-areas-row"):
                     edit_points = gr.Textbox(
                         value=review_details.get("points", ""),
-                        label="Points",
+                        label="Contract Points",
+                        interactive=bindings.can_manage,
+                        max_length=10,
+                        lines=1,
+                        scale=0,
+                        min_width=0,
+                        elem_classes="qc-review-points",
+                    )
+                    edit_nurse_points = gr.Textbox(
+                        value=review_details.get("nursePoints", ""),
+                        label="Nurse Points",
                         interactive=bindings.can_manage,
                         max_length=10,
                         lines=1,
@@ -109,6 +119,7 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                         edit_decision,
                         edit_comment,
                         bindings.user_state,
+                        edit_nurse_points,
                     ],
                     [edit_notice, edit_overlay, claim_summary],
                     key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-85-click",
@@ -160,6 +171,7 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                 edit_points,
                 edit_decision,
                 edit_comment,
+                edit_nurse_points,
             ],
             key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-130-click",
         )
@@ -182,12 +194,13 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
             )
             with database.connect_db() as conn:
                 claim_rows, _ = qc.review_view(conn, task_id)
+            gr.HTML(presentation.review_claim_header_html())
             claim_panels = []
             for claim_id, claim_status, review_details, data in claim_rows:
                 with gr.Accordion(
-                    f"{claim_id}    |    QC Review: {claim_status}",
+                    presentation.review_claim_row_label(claim_id, data, claim_status),
                     open=False,
-                    elem_classes="task-entry",
+                    elem_classes=["task-entry", "claim-review-summary"],
                     key=f"claim-{task_id}-{claim_id}",
                 ) as claim_panel:
                     claim_panels.append(claim_panel)
@@ -196,14 +209,28 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                             [(column, data.get(column, "")) for column in config.CLAIM_COLUMNS]
                         )
                     )
+                    gr.HTML(presentation.claim_attachments_html(data))
+                    gr.HTML(presentation.claim_decision_details_html(data))
+                    gr.HTML('<div class="claim-detail-heading">QC Review</div>')
                     claim_id_state = gr.State(claim_id)
+                    claim_data_state = gr.State(data)
                     decision_choices, saved_decision, review_editable = qc.review_decision_options(
                         claim_status, review_details
                     )
                     with gr.Row(elem_classes="qc-review-areas-row"):
                         points = gr.Textbox(
                             value=review_details.get("points", ""),
-                            label="Points",
+                            label="Contract Points",
+                            interactive=bindings.can_manage,
+                            max_length=10,
+                            lines=1,
+                            scale=0,
+                            min_width=0,
+                            elem_classes="qc-review-points",
+                        )
+                        nurse_points = gr.Textbox(
+                            value=review_details.get("nursePoints", ""),
+                            label="Nurse Points",
                             interactive=bindings.can_manage,
                             max_length=10,
                             lines=1,
@@ -261,6 +288,8 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                             review_comment,
                             bindings.user_state,
                             points,
+                            nurse_points,
+                            claim_data_state,
                         ],
                         [claim_notice, claim_panel, save_claim],
                         key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-202-click",

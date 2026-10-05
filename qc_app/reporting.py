@@ -7,7 +7,7 @@ import psycopg
 from . import config, database, errors, identity, repository
 
 REPORT_HEADERS = [*config.TASK_COLUMNS, "Claim", "QC Status", "QC Review", "QC Comment",
-                  "Review Areas", "Points", "Reviewed By", "Conversation Notes"]
+                  "Review Areas", "Contract Points", "Nurse Points", "Reviewed By", "Conversation Notes"]
 
 
 def load_report(user):
@@ -56,7 +56,7 @@ def load_report(user):
                 *task, claim_id, item.get("qcReviewStatus", ""),
                 details.get("qcReview", ""), details.get("qcReviewComment", ""),
                 ", ".join(details.get("reviewCategories", [])), details.get("points", ""),
-                details.get("reviewedBy", ""),
+                details.get("nursePoints", ""), details.get("reviewedBy", ""),
                 "\n\n".join(notes_by_claim.get((task_id, claim_id), [])),
             ])
     return rows

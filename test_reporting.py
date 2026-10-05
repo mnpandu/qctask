@@ -12,7 +12,7 @@ class ReportingTests(unittest.TestCase):
         second = [6, "Full", "Not Started", "", "today", "", 1, ""]
         html = reporting.render_report([
             first + ["C1", "Agree", "Agree", "Completed", "Coding", "2", "pandu", "<script>note</script>"],
-            first + ["C2", "", "", "", "", "", "", ""],
+            first + ["C2", "", "", "", "", "", "", "", ""],
             second + ["C3", "", "", "", "", "", "", ""],
         ])
         self.assertEqual(html.count('<section class="report-task">'), 2)
@@ -30,7 +30,7 @@ class ReportingTests(unittest.TestCase):
         canonical = {"claimsForReviews": [
             {"claimNumber": "C1", "qcReviewStatus": "Agree", "qcReviewDetails": {
                 "qcReview": "Agree", "qcReviewComment": "Completed",
-                "reviewCategories": ["Coding"], "points": "2", "reviewedBy": "pandu"}},
+                "reviewCategories": ["Coding"], "points": "2", "nursePoints": "3", "reviewedBy": "pandu"}},
             {"claimNumber": "C2"},
         ]}
         for user in config.USERS.values():
@@ -41,10 +41,10 @@ class ReportingTests(unittest.TestCase):
                 ]
                 rows = reporting.load_report(user)
                 self.assertEqual([row[0] for row in rows], [7, 7, 6])
-                self.assertEqual(rows[0][8:15], ["C1", "Agree", "Agree", "Completed", "Coding", "2", "pandu"])
+                self.assertEqual(rows[0][8:16], ["C1", "Agree", "Agree", "Completed", "Coding", "2", "3", "pandu"])
                 self.assertEqual(rows[0][-1], "today | pandu to regine: Please review")
-                self.assertEqual(rows[1][8:], ["C2", "", "", "", "", "", "", ""])
-                self.assertEqual(rows[2][8:], [""] * 8)
+                self.assertEqual(rows[1][8:], ["C2", "", "", "", "", "", "", "", ""])
+                self.assertEqual(rows[2][8:], [""] * 9)
                 self.assertTrue(all(len(row) == len(reporting.REPORT_HEADERS) for row in rows))
                 for call in conn.execute.call_args_list:
                     self.assertEqual(call.args[1], (config.CASE_ID,))

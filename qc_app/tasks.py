@@ -47,7 +47,7 @@ def prepare_review(task_name):
 
 
 def create_task(task_name, claim_ids, comments, user=None):
-    identity.require_qc_nurse(user)
+    identity.require_manage(user)
     try:
         with database.connect_db() as conn:
             task_id = task_service.persist_task(conn, task_name, claim_ids, comments, user)
@@ -98,7 +98,7 @@ def open_task(table, evt: gr.SelectData):
 
 
 def save_details(task_id, status, assigned_to, comments, claim_ids, user=None):
-    identity.require_qc_nurse(user)
+    identity.require_manage(user)
     if task_id is None:
         raise gr.Error("Select a task first.")
     try:
@@ -139,7 +139,7 @@ def review_outputs(conn, task_id):
 
 
 def run_review(action, task_id, claim_id=None, outcome="", notes="", user=None):
-    identity.require_qc_nurse(user)
+    identity.require_manage(user)
     if task_id is None:
         raise gr.Error("Select a task first.")
     try:
@@ -166,7 +166,7 @@ def run_review(action, task_id, claim_id=None, outcome="", notes="", user=None):
 
 
 def perform_task_action(task_id, action, user=None):
-    identity.require_qc_nurse(user)
+    identity.require_manage(user)
     try:
         with database.connect_db() as conn:
             changed = task_service.task_action(conn, task_id, action, user)

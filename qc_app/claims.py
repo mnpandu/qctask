@@ -37,8 +37,8 @@ def update_qc_comment(decision):
     return gr.update(**qc_comment_options(decision))
 
 
-def save_claim_form(task_id, claim_id, categories, decision, comment, user=None, points=None):
-    identity.require_qc_nurse(user)
+def save_claim_form(task_id, claim_id, categories, decision, comment, user=None, points=None, nurse_points=None, claim_data=None):
+    identity.require_manage(user)
     try:
         with database.connect_db() as conn:
             qc.save_claim_decision(
@@ -51,6 +51,7 @@ def save_claim_form(task_id, claim_id, categories, decision, comment, user=None,
                 identity.actor_id(user),
                 categories,
                 points,
+                **({"nurse_points": nurse_points} if nurse_points is not None else {}),
             )
     except ValueError as exc:
         raise gr.Error(str(exc)) from None
@@ -58,7 +59,7 @@ def save_claim_form(task_id, claim_id, categories, decision, comment, user=None,
         raise errors.database_error() from None
     return (
         f"Claim {claim_id} saved: {decision}.",
-        gr.update(label=f"{claim_id}    |    QC Review: {decision}"),
+        gr.update(label=presentation.review_claim_row_label(claim_id, claim_data or {}, decision)),
         gr.update(interactive=False),
     )
 
@@ -75,8 +76,9 @@ def save_claim_edit_form(
     decision,
     comment,
     user=None,
+    nurse_points=None,
 ):
-    identity.require_qc_nurse(user)
+    identity.require_manage(user)
     categories = [
         name
         for name, checked in zip(
@@ -103,6 +105,7 @@ def save_claim_edit_form(
                 identity.actor_id(user),
                 categories,
                 points,
+                **({"nurse_points": nurse_points} if nurse_points is not None else {}),
             )
     except ValueError as exc:
         raise gr.Error(str(exc)) from None
@@ -186,9 +189,12 @@ def open_claim_editor_group(task_id, claim_id, user=None):
     selected = [
         area for area, update in zip(qc.QC_REVIEW_CATEGORIES, values[3:8]) if update["value"]
     ]
-    return (*values[:3], gr.update(value=selected, visible=True), *values[8:])
+    metadata = repository.task_metadata(task_id)
+    item = next(c for c in metadata[3]["claimsForReviews"] if c["claimNumber"] == claim_id)
+    nurse_points = item.get("qcReviewDetails", {}).get("nursePoints", "")
+    return (*values[:3], gr.update(value=selected, visible=True), *values[8:], gr.update(value=nurse_points))
 
 
-def save_claim_edit_group(task_id, claim_id, areas, points, decision, comment, user=None):
+def save_claim_edit_group(task_id, claim_id, areas, points, decision, comment, user=None, nurse_points=None):
     checked = [area in (areas or []) for area in qc.QC_REVIEW_CATEGORIES]
-    return save_claim_edit_form(task_id, claim_id, *checked, points, decision, comment, user)
+    return save_claim_edit_form(task_id, claim_id, *checked, points, decision, comment, user, nurse_points)

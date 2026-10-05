@@ -45,3 +45,20 @@ USERS = {
 
 
 STATUSES = ["Not Started", "In Progress", "Completed"]
+
+
+# Claim metadata displayed when opening Review Claims, in reference-screen order.
+REVIEW_CLAIM_FIELDS = {
+    "Claim #": ("Claim #", "Claim ID", "claimNumber", "claim_number"),
+    "No of Lines": ("No of Lines", "numberOfLines", "noOfLines", "lineCount"),
+    "DOS From / To": ("DOS From / To", "DOS From/To", "Date of Service", "dateOfService"),
+    "MBI": ("MBI", "mbi"),
+    "Focus Code": ("Focus Code", "focusCode"),
+    "PTAN": ("PTAN", "ptan"),
+    "NPI": ("NPI", "npi"),
+    "Resp Rcvd": ("Resp Rcvd", "RESP RCVD", "Response Received", "responseReceived", "respRcvd"),
+    "Claim Decision": ("Claim Decision", "claimDecision"),
+    "QC Review": ("QC Review", "qcReview"),
+    "ADR Sent Date": ("ADR Sent Date", "adrSentDate"),
+    "TOB": ("TOB", "tob", "Type of Bill", "typeOfBill"),
+}
