@@ -1,355 +1,412 @@
-# QC task workspace
+# Claim QC Review - Business Flows and Rules
 
-This Gradio application manages task creation, claim QC reviews, task completion,
-claim conversations, alerts, and task lifecycle comments for one configured case.
-The visible tabs are **Tasks**, followed by **Comments**. Reporting has been removed
-from the interface.
+## Business purpose
 
-## Setup and launch
+The workspace allows Nurses and QC Nurses to organize claims into review tasks,
+record review decisions, identify corrections, record points and review areas,
+communicate about claims, and view task comments from creation through completion.
 
-Run these commands from `qctask`:
+This document describes the current business behavior and provides a basis for a
+Business Requirements Document (BRD).
 
-```powershell
-python -m pip install -r requirements.txt
-python app.py
-```
+## Business users and responsibilities
 
-PostgreSQL must be running and accessible. Startup applies `schema.sql`, creates
-missing tables, and performs the included schema upgrades before opening Gradio.
-Startup reads existing claims; it does not generate or import claim data.
-`app.py` currently launches with `share=True`, which creates a public share link.
-The username selector has no password authentication; it does not verify identity.
-
-| Setting | Default | Purpose |
-| --- | --- | --- |
-| `PGHOST` | `localhost` | Database host |
-| `PGPORT` | `5432` | Database port |
-| `PGDATABASE` | `postgres` | Database name |
-| `PGUSER` | `postgres` | Database user |
-| `PGPASSWORD` | `postgres` | Database password |
-| `QC_CASE_ID` | `1` | Numeric case used for task and claim operations |
-| `QC_USER_ID` | `demo` | Legacy/noninteractive audit ID fallback |
-| `QC_USER_NAME` | `Demo User` | Legacy/noninteractive audit name fallback |
-
-## Sign in and permissions
-
-Choose `pandu` (Pandu, QC Nurse) or `regine` (Regine, Nurse), then click **Sign in**.
-Each browser session keeps its selected user independently. Use **Sign out** to
-switch users in the same browser.
-
-Both roles can create tasks, self-assign, complete and delete tasks, change Mentor,
-review and edit claims, send notes, read alerts, and view Comments. Assignment does
-not restrict editing to the assigned user. Interactive mutations validate the
-registered session user and use that user's RACF/name for audit fields.
-
-## End-to-end task flow
-
-1. Sign in and open **Tasks**.
-2. Select **QC Nurse Full Review** or **QC Nurse Partial Review** in **Create Task**.
-3. Inspect eligible claims. Full review includes every eligible claim; partial
-   review lets you select a subset. Enter an optional task comment and click **Create**.
-4. The task starts at **Not Started**, linked claims become **Created**, and a
-   creation entry is saved to Comments, even if the task comment is blank.
-5. Expand the task. Use **SELF ASSIGN** if needed; this sets the task to
-   **In Progress**, records your RACF/name, and creates an assignment alert.
-6. Set the task's **Mentor** checkbox if applicable. Checking or unchecking saves
-   immediately; there is no separate save button for Mentor.
-7. Click **Review Claims**, then click a claim row to expand its review controls.
-8. Save a valid QC decision/comment, review areas, Contract Points, and Nurse Points.
-   Saving a claim alone does not create a task lifecycle comment while work remains.
-9. Saving the last reviewed claim completes the task automatically. Alternatively,
-   use **Complete Task** to finish manually with only some claims reviewed.
-10. Open **Comments** to see creation comments and the completion summary of reviewed
-    claims. Later edits refresh the existing entry instead of creating duplicates.
-
-**Refresh Tasks** reloads task rows and their claim panels. **Cancel** during task
-creation discards the creation form without creating a task.
-
-## Task eligibility and lifecycle rules
-
-### Creating tasks
-
-Claims come exclusively from `pic_master.claim_details` for the configured case.
-
-| Current claim QC status | Eligible for task creation? |
+| Role | Permitted activities |
 | --- | --- |
-| NULL, empty, or whitespace | Yes |
+| Nurse | Create, assign, review, edit, complete, and delete tasks; update Mentor; send notes; manage alerts; view Comments |
+| QC Nurse | The same activities as Nurse |
+
+Both roles have equal access to these activities. A task's assigned user does not
+have exclusive editing rights. A user must sign in before performing an activity.
+The currently available users are Pandu (QC Nurse) and Regine (Nurse).
+Users sign out before changing their selected identity.
+
+RACF means the user's identifying name used for assignment, communication, and
+recording who performed an activity.
+
+## Workspace navigation
+
+The workspace contains two tabs, in order:
+
+1. **Tasks** - Create and manage tasks, review claims, edit reviews, and send notes.
+2. **Comments** - View task creation comments and completed-task claim summaries.
+
+The user's name and unread Alerts count are displayed. Reporting is not available
+as a separate tab or link.
+
+## Complete business journey
+
+1. The user signs in and opens Tasks for the current case.
+2. The user chooses Full Review or Partial Review.
+3. Eligible claims are displayed. Full Review includes all eligible claims; Partial
+   Review allows the user to choose a subset.
+4. The user optionally enters a task comment and creates the task.
+5. The task appears as Not Started. Selected claims are reserved for that task and
+   marked Created. A task creation comment is recorded.
+6. The user can self-assign the task and select Mentor if applicable.
+7. The user opens Review Claims, inspects a claim's attachments and decision
+   details, and records a QC decision, comment, review areas, and points.
+8. The user repeats the review for the remaining claims. Individual reviews do not
+   add separate task Comments while the task remains unfinished.
+9. The task completes automatically when all claims have been reviewed, or the user
+   selects Complete Task to finish with only some claims reviewed.
+10. A completion comment summarizes only the reviewed claims.
+11. The user may edit a reviewed claim or send a note. Existing task Comments are
+    refreshed when their related saved details change.
+12. The user opens Comments to see the latest task comments and claim summaries.
+
+## Task creation
+
+### Review types
+
+| Review type | Claim selection rule |
+| --- | --- |
+| QC Nurse Full Review | Includes every eligible claim for the case |
+| QC Nurse Partial Review | Includes only the eligible claims selected by the user |
+
+At least one eligible claim is required. The task comment is optional and can
+contain up to 4,000 characters. Cancel closes the creation form without creating
+a task.
+
+### Claim eligibility
+
+| Claim QC status | Available for a new task? |
+| --- | --- |
+| No status recorded | Yes |
 | Released | Yes |
 | Returned for Corrections | Yes |
-| Created or In Progress | No |
-| Agree or Completed | No |
+| Created | No |
+| In Progress | No |
+| Agree | No |
+| Completed | No |
 
-Full review includes all currently eligible claims, even if a caller supplies a
-subset. Partial review requires at least one selected eligible claim. Repeated
-claim IDs are removed. Eligibility is rechecked during save under a per-case
-transaction lock, preventing simultaneous creation from reserving the same claims.
-Task comments have a maximum length of 4,000 characters.
+Eligibility is checked again when the task is created. A claim that is no longer
+eligible cannot be included. Simultaneous task creation must not reserve the same
+eligible claim twice. Selecting a claim repeatedly does not create duplicate claim
+entries in the task.
 
-### Assignment, Mentor, completion, and deletion
+A claim returned for corrections may be included in a later review task. Its prior
+review determines whether the later task requires Re-review.
 
-- **SELF ASSIGN** assigns to the current user, sets In Progress, and clears the
-  task completion date. An alert is created only when the assigned RACF changes.
-- **Mentor** is a per-task Boolean, defaulting to unchecked. Both roles can change
-  it on active tasks, including completed tasks. Saving updates task audit fields.
-- Automatic completion occurs when every linked claim has a reviewed status:
-  Agree, Returned for Corrections, or Completed. Returned for Corrections counts
-  as reviewed; task completion does not mean every claim was agreed.
-- **Complete Task** releases linked claims whose current status is Created,
-  preserves reviewed claims, and completes the task. Only actually reviewed claims
-  are included in its completion comment. The legacy In Progress claim status is
-  not released by this operation.
-- Self-assign and Complete Task are disabled for completed tasks. A stale or
-  repeated request refreshes the task view without rewriting it.
-- **DELETE TASK** removes task and task-details rows and sets every linked claim
-  to Released, including previously reviewed claims. Its claim conversations and
-  alerts are removed through database foreign-key cascades. The task's lifecycle Comments
-  are also deleted in the same transaction.
-- Task, claim-status, canonical JSON, alerts, and lifecycle-comment changes commit
-  together in their owning transaction; errors roll back that operation.
+### Creation outcome
 
-## Review Claims layout
+The task receives a Task ID and the selected task name. Its initial status is
+Not Started. Included claims become Created. The creation comment records the task
+comment, including a blank comment when no text was entered.
 
-The popup has a light column banner. Each clickable claim row displays these
-columns before expansion, in this order:
+## Task information and actions
 
-| Column | Value source |
+The task list shows Task ID, Task Name, Case Number, Status, Assigned To, Created
+On, and Completed On. Expanding a task shows assignment and creator details, task
+comments, its claims, Mentor, QC Review Information, and task actions.
+
+### Self-assignment
+
+SELF ASSIGN assigns the task to the current user and sets it to In Progress.
+An assignment alert is generated when the assigned user changes. Self-assignment
+is unavailable after the task is completed. Repeating a completed-task assignment
+request does not change the task.
+
+### Mentor
+
+Mentor is an optional checkbox for each task. New and existing tasks start
+unchecked unless a user has selected it. Checking or unchecking saves immediately.
+Both roles can change Mentor, including on completed tasks. Mentor does not change
+claim decisions or task completion rules.
+
+### Refresh
+
+Refresh Tasks displays the latest task and review information. Users should refresh
+when another user's work may have changed the task.
+
+## Review Claims - claim list
+
+When the user selects Review Claims, each clickable claim row shows these fields
+without needing to expand the claim:
+
+| Order | Field |
 | --- | --- |
-| Claim # | Linked claim number |
-| No of Lines | Claim metadata |
-| DOS From / To | Combined service dates or Date of Service |
-| MBI | Claim metadata |
-| Focus Code | Claim metadata |
-| PTAN | Claim metadata |
-| NPI | Claim metadata |
-| Resp Rcvd | Claim metadata |
-| Claim Decision | Claim metadata |
-| QC Review | Current claim QC status |
-| ADR Sent Date | Claim metadata |
-| TOB | Claim metadata |
+| 1 | Claim # |
+| 2 | No of Lines |
+| 3 | DOS From / To |
+| 4 | MBI |
+| 5 | Focus Code |
+| 6 | PTAN |
+| 7 | NPI |
+| 8 | Resp Rcvd |
+| 9 | Claim Decision |
+| 10 | QC Review |
+| 11 | ADR Sent Date |
+| 12 | TOB |
 
-There is no separate duplicate claims table. Clicking a row opens its content;
-expanding another claim closes the other claim panels. Missing displayed metadata
-uses `?`; zero values remain visible.
+QC Review in the claim row shows the claim's current QC status. The column banner
+has a light background. Unavailable claim information displays as `?`.
+Clicking a claim row expands its details and review controls. Expanding another
+claim closes the other expanded claim sections.
 
-Each expanded claim contains existing claim details, **Attachments**, **Decision
-Details**, and **QC Review** controls. Source attachments and decision details are
-read-only and are distinct from the editable QC decision.
+## Expanded claim information
+
+An expanded claim includes existing claim information, Attachments, Decision
+Details, and QC Review. Attachments and Decision Details show the source claim
+information; changing the QC review does not change that source decision.
 
 ### Attachments
 
-The table has **File Name**, **Doc Type**, **Work Type**, and **Receipt Date**.
-It reads `attachments` or `claimAttachments` from claim JSON. Records use
-`fileName`/`name`, `docType`/`documentType`, `workType`, and
-`receiptDate`/`receivedDate`. Empty lists show **No records to display**.
-The table displays attachment metadata; it does not upload files or provide a
-file-download implementation.
+The Attachments section displays:
+
+- File Name
+- Doc Type
+- Work Type
+- Receipt Date
+
+When no attachments are available, it displays **No records to display**.
+This section displays attachment information; file upload and download are not
+part of the current business flow.
 
 ### Decision Details
 
-Displays **Decision**, **Decision Date**, **Associated DCN**, **Demand Bill**,
-**Denial Reason**, **Generic Reason Code**, **Pre MR Original Reimbursement**,
-**Post MR Original Reimbursement**, **Total Reimbursement Savings**, and
-**Decision Remarks**. Values come from `decisionDetails` or `claimDecisionDetails`,
-with top-level claim fields as fallbacks. Metadata lookup accepts equivalent
-capitalization, spaces, and underscores.
+The Decision Details section displays:
 
-## QC decisions and business rules
+- Decision
+- Decision Date
+- Associated DCN
+- Demand Bill
+- Denial Reason
+- Generic Reason Code
+- Pre MR Original Reimbursement
+- Post MR Original Reimbursement
+- Total Reimbursement Savings
+- Decision Remarks
 
-| Review context | Available QC decision | QC Review Comment | Saved claim QC status |
-| --- | --- | --- | --- |
-| No prior reviewed task | Agree | Completed, automatically selected | Agree |
-| No prior reviewed task | Action Required | Return for Correction or Response Requested | Returned for Corrections |
-| Reviewed in an earlier task | Re-review | Return of Correction | Returned for Corrections |
-| Reviewed in an earlier task | Re-review | Complete | Completed |
+Unavailable values display as `?`. These fields provide context for the QC review
+and are not edited through the QC Review controls.
 
-A prior review means the same claim appears in a task with a lower task ID and a
-nonblank saved `qcReview` in its canonical review details. Saving Action Required
-in the **same task** does not trigger Re-review. The user can continue editing that
-review with Agree or Action Required. When that reviewed claim is selected into a
-later task, the new task offers Re-review instead.
+## QC review decisions
 
-Released claims with no prior saved QC review retain Agree/Action Required in a
-later task. Deleting an earlier task removes its canonical review history, so that
-deleted history no longer participates in Re-review detection. Legacy outcome-only
-reviews do not satisfy the `qcReview` history check.
+### First review and changes within the same task
 
-Agreed claims remain editable: both roles can change review areas and points or
-switch to Action Required within the same first-review task. A Re-review saved with
-Complete locks its QC decision/comment in the interface; its edit popup still
-allows points and review-area updates while keeping Re-review/Complete.
+When a claim has not been reviewed in an earlier task, the available decisions are
+Agree and Action Required.
 
-Available review areas are **Clinical Determination**, **Generic Reason Code**,
-**Coding**, **Decision Remarks**, and **Other**. Multiple areas may be selected;
-duplicate areas are removed and unknown areas are rejected.
+| QC decision | Allowed QC comment | Resulting claim status |
+| --- | --- | --- |
+| Agree | Completed, selected automatically | Agree |
+| Action Required | Return for Correction | Returned for Corrections |
+| Action Required | Response Requested | Returned for Corrections |
 
-**Contract Points** and **Nurse Points** are independent optional text fields with
-the same UI behavior: one line and a 10-character entry limit. Backend validation
-allows up to 100 characters per field. Existing `points` values remain Contract
-Points; Nurse Points uses `nursePoints`. Neither field requires numeric input.
-Omitted points in backend helper calls preserve the existing value; saving an empty
-textbox explicitly clears that field.
+Saving Action Required does not turn the current task's review into Re-review.
+Users can continue editing that claim in the same task and select Agree or Action
+Required. Agreed claims remain editable in that same first-review task.
 
-Review saves validate claim membership and permitted decision/comment combinations,
-lock the task, update claim QC status, update canonical review details and audit ID,
-and recalculate task completion. Reviewed claim rows appear in **QC Review
-Information** with an **Edit** button. The editor's **Save Points and QC Review**
-updates the summary and stays open. Use **Close** at the top to leave the editor.
+### Re-review in a later task
 
-## Claim conversations and alerts
+Re-review is offered when the same claim has a saved QC decision in an earlier
+task and is included in a later task. Reviewing a claim repeatedly within its
+original task does not count as review in another task.
 
-Open **Edit** on a reviewed claim to access **Conversation and notes**.
-The recipient RACF/user name is optional: blank sends to yourself. When reopened,
-the editor defaults to the previous conversation participant, or yourself when
-there is no previous message. The recipient can be changed before sending.
+| QC decision | Allowed QC comment | Resulting claim status |
+| --- | --- | --- |
+| Re-review | Return of Correction | Returned for Corrections |
+| Re-review | Complete | Completed |
 
-Notes must contain 1-4,000 characters after trimming. Recipient names are limited
-to 100 characters. Notes are associated with the selected task and claim and use
-the selected user's RACF as sender. Sending a note saves the message and creates an
-unread alert for the named recipient only; the task assignee does not receive an
-additional alert unless named as recipient. Arbitrary recipient RACFs can be stored;
-the current login selector offers only Pandu and Regine.
+For a later task requiring Re-review, Agree and Action Required are not offered.
+A claim released without a prior saved QC decision retains first-review choices
+when included in another task. A deleted task's review history is no longer used
+to determine Re-review. Earlier records containing only an old review outcome,
+without a QC decision, do not trigger Re-review.
 
-**Send Note** refreshes the conversation, clears the note textbox, and keeps the
-claim editor open. Sending notes does not create task lifecycle Comments.
-The **Alerts** badge refreshes every 15 seconds. Open Alerts to see unread items,
-use **Mark Read** to mark your alerts read, and **Close** to dismiss the alert panel.
+After Re-review is saved with Complete, its decision and comment cannot be changed
+through the review controls. Points and review areas can still be updated through
+Edit while retaining Re-review and Complete.
+
+### Review areas
+
+Users may select any applicable combination of:
+
+- Clinical Determination
+- Generic Reason Code
+- Coding
+- Decision Remarks
+- Other
+
+Review areas are optional. Only these areas are allowed, and each selected area
+appears once.
+
+### Points
+
+Contract Points and Nurse Points are separate optional text fields. Each accepts
+up to 10 characters through the screen. They may contain text and do not require
+numeric values. Changing one field does not replace the other. Existing Points
+values are shown as Contract Points. Saving a blank field clears that field.
+
+### Saving a review
+
+A valid QC decision and its permitted comment are required. Agree automatically
+uses Completed. The user can only save a review for a claim belonging to the task.
+A successful save records the selected review details and who reviewed the claim,
+updates the claim's QC status, and reevaluates whether the task is complete.
+
+Reviewed claims appear in QC Review Information with an Edit action.
+
+## Task completion
+
+### Automatic completion
+
+A task completes when all its linked claims have one of these reviewed statuses:
+Agree, Returned for Corrections, or Completed.
+
+Returned for Corrections counts as a reviewed result. Task completion therefore
+means the review work was recorded; it does not mean every claim was agreed or
+that every correction has been resolved.
+
+If any linked claim remains unreviewed, the task remains In Progress after a review
+save. Completing the task records a completion date and a completion comment.
+
+### Manual completion
+
+Complete Task allows a user to complete a task before all its claims are reviewed.
+Claims still marked Created are released for future task selection. Reviewed claim
+results are retained. Claims already marked In Progress are not released by this
+action.
+
+The completion comment includes reviewed claims only. When no claims were
+reviewed, the summary displays **No reviewed claims**.
+
+After completion, SELF ASSIGN and Complete Task are unavailable. Repeated completion
+does not produce duplicate Comments or change a completed task.
+
+## Editing reviewed claims
+
+The user selects Edit beside a reviewed claim to change allowed review details
+or continue the claim conversation. Both roles can edit.
+
+Save Points and QC Review saves the changes, refreshes the claim summary and its
+existing completion comment when present, and keeps the editor open. Send Note also
+keeps the editor open. Users select Close at the top when ready to leave.
+
+Editing an agreed first-review claim can change its decision to Action Required.
+This remains a change within the same task and does not introduce Re-review.
+Changes are checked against the same decision and completion rules as the original
+review.
+
+## Claim conversations
+
+Conversation and notes are available in the reviewed claim's Edit screen.
+A note belongs to the selected task and claim.
+
+- The user may enter a recipient RACF/user name.
+- Leaving the recipient blank sends the note to the current user.
+- A new conversation initially defaults to the current user.
+- Reopening a conversation defaults to the previous participant. The user can
+  change that recipient before sending.
+- A note must contain between 1 and 4,000 characters, excluding leading and trailing
+  spaces. A recipient name can contain up to 100 characters.
+- Sending saves the note, displays it in the conversation, clears the note entry
+  field, and keeps the editor open.
+- Notes do not create task creation or completion Comments.
+
+The user can enter another recipient name; the current sign-in choices remain
+Pandu and Regine.
+
+## Alerts
+
+New assignments and received notes produce alerts.
+
+- Assignment alerts are sent to the newly assigned user.
+- Note alerts are sent only to the named recipient. Assignment alone does not give
+  the task assignee a copy of every note alert.
+- Each user sees their own unread alert count.
+- The count refreshes every 15 seconds.
+- Opening Alerts shows up to 50 of the most recent unread alerts with related task,
+  claim, sender, date, and message information.
+- Mark Read marks all of the current user's unread alerts as read.
+- Close dismisses the alerts panel without marking alerts as read.
 
 ## Comments tab
 
-Comments follows Tasks. Each entry starts collapsed and shows only **Date**,
-**Task ID**, **Task Name**, and **RACF - Name**. Click the row to expand or collapse
-it. Expanded entries show a heading such as **Task 238 - Created** and **Comments**.
-Completed entries additionally show Claim #, Contract Points, Nurse Points, Review
-Areas, Final Status, QC Review, and QC Comment for each reviewed claim.
+Comments appears immediately after Tasks. Each task comment is a separate
+expandable row and starts collapsed.
 
-Business rules:
+### Collapsed row
 
-- Creating a task creates one Created entry containing its task comment.
-- Individual claim saves while a task is in progress add no lifecycle entry.
-- Automatic or manual completion creates one Completed entry for the task.
-- The completion entry includes only claims with a reviewed status and a saved QC
-  decision or legacy review outcome. Released/unreviewed claims are excluded.
-- If no claims were reviewed, manual completion displays **No reviewed claims**.
-- The database enforces one entry per task/event type. Repeat completion adds no
-  duplicate. Later claim edits refresh the existing completion details, including
-  both points fields, review areas, decision/comment, and final status.
-- Task comment edits refresh the existing Created entry. Task-name metadata is
-  refreshed on existing entries. Refreshes retain the original comment date/author.
-- Existing completion entries can be refreshed during subsequent edits; a claim
-  edit does not create an entry for an unfinished task that has never completed.
-- Select Comments or click **Refresh Comments** to load current data. Entries are
-  ordered newest first. Historic tasks are not automatically given new lifecycle
-  comments; existing comment rows have task-name metadata backfilled when available.
-- Deleting a task deletes its corresponding Created and Completed Comments entries.
-  Conversation messages remain a separate feature.
+Only these fields are displayed:
 
-## Data model and example payload
+- Date
+- Task ID
+- Task Name
+- RACF - Name
 
-| Table | Responsibility |
+### Expanded row
+
+Expanding displays the comment heading, such as **Task 238 - Created**, and its
+Comments. Completed entries additionally display reviewed claims with:
+
+- Claim #
+- Contract Points
+- Nurse Points
+- Review Areas
+- Final Status
+- QC Review
+- QC Comment
+
+Clicking the row again collapses it.
+
+### Comment creation and refresh rules
+
+1. Creating a task records one Created comment containing the user's task comment.
+2. Saving individual claims does not add task Comments while review work is in
+   progress and the task has never completed.
+3. Automatic or manual task completion records one Completed comment.
+4. The completion summary includes only reviewed claims with a saved review result.
+   Released and unreviewed claims are excluded.
+5. Repeated completion does not add another Completed comment.
+6. Later edits to points, review areas, QC decision/comment, or final status refresh
+   the corresponding existing completion summary without adding another entry.
+7. Editing the task comment refreshes its existing Created comment. Existing comment
+   entries also show the current task name when related details are refreshed.
+8. Refreshing a comment retains its original date and author information.
+9. A claim edit can refresh an existing completion comment even if the task's work
+   subsequently changes. It does not create a completion comment for a task that
+   has never completed.
+10. Selecting Comments or Refresh Comments displays the latest entries, newest first.
+11. Older tasks are not automatically given creation or completion comments that
+    were never recorded.
+12. Deleting a task deletes its corresponding Created and Completed Comments.
+
+## Task deletion
+
+Either role can delete a task, including a completed task. Deletion removes the
+task and its review records, claim conversations, related alerts, and task Comments.
+All linked claims become Released, including claims that had been reviewed, so they
+can be selected for future tasks.
+
+Deleting a task does not delete the source claim information. Because the deleted
+task's review history is removed, that history does not establish a later Re-review.
+
+## Business scenarios and expected outcomes
+
+| Scenario | Expected outcome |
 | --- | --- |
-| `pic_master.task` | Task metadata, workflow status, assignment, comment, Mentor, audit fields |
-| `pic_master.task_details` | Task claim membership/order and canonical JSON review details |
-| `pic_master.claim_details` | Source claim JSON and current claim QC status, keyed by case/claim |
-| `pic_master.qc_claim_messages` | Per-task, per-claim conversations |
-| `pic_master.qc_notifications` | Unread/read alerts for named recipients and assignment alerts |
-| `pic_master.task_comments` | Creation comment and refreshable completion summary per task |
+| User creates a Full Review task | Every currently eligible case claim is included |
+| User creates a Partial Review task | Only selected eligible claims are included |
+| Selected claim becomes unavailable before creation | Task creation is rejected and the user must refresh selection |
+| Claim 1 in Task 1 is saved as Action Required, then edited in Task 1 | Agree and Action Required remain available; Re-review is not shown |
+| A previously reviewed, eligible Claim 1 is included in Task 2 | Re-review is offered in Task 2 |
+| An unreviewed claim is released and included in another task | Agree and Action Required remain available |
+| Last unreviewed claim is saved with a valid reviewed result | Task completes and one completion comment is recorded |
+| User completes a task with reviewed and unreviewed claims | Created claims are released; summary includes reviewed claims only |
+| User completes a task without reviewing any claims | Completion comment displays No reviewed claims |
+| User edits points after task completion | Existing completion summary is refreshed; no duplicate entry |
+| User saves a reviewed claim or sends a note from Edit | Editor stays open until Close is selected |
+| User clears the note recipient and sends | Note and alert go to the current user |
+| User selects or clears Mentor | Choice is immediately saved for that task |
+| User opens Comments | Rows start collapsed with date, task ID, task name, and RACF - name |
+| User deletes a task | Task, associated comments, conversations, and alerts are removed; claims are released |
 
-Claim membership/order lives only in `task_details.task_canonical`; source claims
-have no `task_id` or `qc_review_order`. Source decision metadata is not overwritten
-by a QC decision. Task canonical JSON uses string claim numbers:
+## Business boundaries
 
-```json
-{
-  "claimsForReviews": [
-    {
-      "claimNumber": "DEMO-CLM-0001",
-      "qcReviewStatus": "Agree",
-      "qcReviewDetails": {
-        "qcReview": "Agree",
-        "qcReviewComment": "Completed",
-        "reviewedBy": "regine",
-        "reviewCategories": ["Coding"],
-        "coding": true,
-        "points": "2",
-        "nursePoints": "3"
-      }
-    }
-  ]
-}
-```
-
-Example source `claim_data` fields:
-
-```json
-{
-  "noOfLines": 3,
-  "dosFrom": "04/20/2023",
-  "dosTo": "04/21/2023",
-  "mbi": "EXAMPLE-MBI",
-  "focusCode": "EXAMPLE",
-  "ptan": "396053",
-  "npi": "1265432165",
-  "responseReceived": "Yes",
-  "claimDecision": "Y",
-  "adrSentDate": "07/12/2023",
-  "typeOfBill": "111",
-  "attachments": [
-    {"fileName": "review.pdf", "documentType": "Medical", "workType": "Review", "receiptDate": "07/12/2023"}
-  ],
-  "decisionDetails": {
-    "decision": "Full Denial",
-    "decisionDate": "07/21/2023",
-    "associatedDCN": "",
-    "demandBill": "",
-    "denialReason": "59CON",
-    "genericReasonCode": "GAI02",
-    "preMROriginalReimbursement": "",
-    "postMROriginalReimbursement": "",
-    "totalReimbursementSavings": "",
-    "decisionRemarks": "Full denial"
-  }
-}
-```
-
-`schema.sql` includes upgrades for Mentor and task-comments metadata and removes
-obsolete duplicate claim-review columns after migrating their data into canonical
-JSON. On initial schema creation, legacy `public.task`/`public.task_details` records
-are copied with task IDs preserved; legacy tables remain intact.
-`task_comments_schema.sql` applies the comments table and its metadata upgrade alone.
-
-## Development and verification
-
-`app.py` initializes the database, builds the UI, then launches. Importing it does
-not create components or connect to PostgreSQL. `qc_app.ui.create_app()` builds an
-independent interface; callers still own initialization and launch.
-
-| Module | Responsibility |
-| --- | --- |
-| `qc_app/config.py`, `identity.py`, `session.py` | Settings, session validation, sign-in/out |
-| `qc_app/database.py`, `repository.py` | Schema/connection setup and task queries |
-| `qc_app/task_service.py`, `messaging_service.py` | Mutations inside caller-owned transactions |
-| `claim_workflow.py` | Eligibility, locking, decisions, legacy sequential review, canonical synchronization |
-| `task_comments.py`, `qc_app/comments.py` | Lifecycle-comment persistence and display |
-| `qc_app/tasks.py`, `claims.py`, `messaging.py`, `notifications.py` | UI callbacks and error translation |
-| `qc_app/ui.py`, `panels.py`, `presentation.py`, `assets/` | Interface, rendering, styles, row alignment |
-
-The legacy sequential backend supports start-next, draft, and complete operations;
-the current interface uses direct per-claim QC review controls. Reporting modules
-remain in the codebase but are not exposed as a tab or link.
-
-Run from `qctask` after schema initialization:
-
-```powershell
-python -m unittest discover -v
-```
-
-The suite includes UI construction checks, PostgreSQL workflow integration,
-permissions, reviewed-claim editing, Comments creation/completion/refresh, and
-presentation escaping. Database integration tests roll back their test changes.
-UI construction tests use mocks and do not launch a server. With Ruff installed,
-repository style checks are available through:
-
-```powershell
-python -m ruff check .
-python -m ruff format --check .
-```
+This document covers the current task and claim QC review workspace. Source claim
+information, attachments, and source decisions are provided to the workspace;
+creating or changing those source records is outside this flow. File upload,
+file download, additional user administration, and a separate Reporting view are
+not part of the current business activities.
