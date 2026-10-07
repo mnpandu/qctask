@@ -1,5 +1,11 @@
 # Claim QC Review - Business Flows and Rules
 
+## Email Management
+
+In a claim's Edit section, select **Email Management** to show a
+**Management notified** popup. Select **OK** to close it.
+This is a mockup interaction; no email is sent and no email configuration is needed.
+
 ## Business purpose
 
 The workspace allows Nurses and QC Nurses to organize claims into review tasks,

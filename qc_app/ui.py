@@ -34,6 +34,7 @@ def create_app() -> gr.Blocks:
     ) as demo:
         # Load this component's frontend before it is used inside dynamic task popups.
         gr.CheckboxGroup(choices=list(qc.QC_REVIEW_CATEGORIES), elem_classes="qc-component-loader")
+        gr.Checkbox(value=False, elem_classes="qc-component-loader")
         task_rows = gr.State([])
         user_state = gr.State(None)
         with gr.Column(elem_classes="qc-login-overlay") as login_panel:
@@ -154,19 +155,6 @@ def create_app() -> gr.Blocks:
                                     delete = gr.Button(
                                         "DELETE TASK", size="sm", interactive=can_manage
                                     )
-                        mentor = gr.Checkbox(
-                            label="Mentor",
-                            value=repository.task_mentor(task_id),
-                            interactive=can_manage,
-                            key=f"task-{task_id}-mentor",
-                        )
-                        mentor_notice = gr.Markdown("")
-                        mentor.input(
-                            tasks.save_task_mentor,
-                            [task_id_state, mentor, user_state],
-                            mentor_notice,
-                            key=f"task-{task_id}-mentor-input",
-                        )
                         gr.Textbox(value=row[7], label="Comments", lines=2, interactive=False)
                         gr.HTML(presentation.claims_for_review_html(canonical))
                         review = gr.Button(

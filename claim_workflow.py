@@ -214,7 +214,10 @@ def save_claim_decision(
     categories=None,
     points=None,
     nurse_points=None,
+    report_exclusive=None,
 ):
+    if report_exclusive is not None and not isinstance(report_exclusive, bool):
+        raise ValueError("Report Exclusive must be checked or unchecked.")
     lock_task(conn, task_id, case_id)
     if decision == "Agree":
         comment = "Completed"
@@ -268,6 +271,8 @@ def save_claim_decision(
         details.pop("points")
     if nurse_points is not None:
         details["nursePoints"] = nurse_points
+    if report_exclusive is not None:
+        details["reportExclusive"] = report_exclusive
     sync_canonical(conn, task_id, actor, claim_id, details)
     task_comments.refresh_existing(conn, task_id, actor)
     rows, _ = review_view(conn, task_id)

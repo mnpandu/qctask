@@ -20,6 +20,25 @@ from qc_app import (
 
 
 class RolePermissionTests(unittest.TestCase):
+    def test_report_exclusive_autosave_preserves_other_claim_fields(self):
+        for enabled in (True, False):
+            with self.subTest(enabled=enabled), patch.object(database, "connect_db") as connect, patch.object(claims.qc, "lock_task") as lock, patch.object(claims.qc, "review_view", return_value=([("C1", "Agree", {}, {})], None)), patch.object(claims.qc, "sync_canonical") as sync:
+                result = claims.save_report_exclusive(1, "C1", enabled, config.USERS["pandu"])
+                conn = connect.return_value.__enter__.return_value
+                lock.assert_called_once_with(conn, 1, config.CASE_ID)
+                sync.assert_called_once_with(conn, 1, "pandu", "C1", {"reportExclusive": enabled})
+                self.assertIn("saved", result)
+
+    def test_report_exclusive_autosave_rejects_foreign_claim(self):
+        with patch.object(database, "connect_db"), patch.object(claims.qc, "lock_task"), patch.object(claims.qc, "review_view", return_value=([], None)), patch.object(claims.qc, "sync_canonical") as sync, self.assertRaises(gr.Error):
+            claims.save_report_exclusive(1, "C2", True, config.USERS["pandu"])
+        sync.assert_not_called()
+
+    def test_report_exclusive_autosave_requires_login(self):
+        with patch.object(database, "connect_db") as connect, self.assertRaises(gr.Error):
+            claims.save_report_exclusive(1, "C1", True)
+        connect.assert_not_called()
+
     def test_completed_task_rejects_assign_and_finish_without_writes(self):
         for action in ("assign", "finish"):
             with self.subTest(action=action):

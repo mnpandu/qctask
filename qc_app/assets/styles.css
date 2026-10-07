@@ -1,4 +1,7 @@
 .qc-component-loader { display: none !important; }
+.gradio-container .qc-email-confirmation { z-index: 2000 !important; }
+.qc-report-exclusive { padding: 12px !important; border: 1px solid #94a3b8 !important; }
+.qc-report-exclusive input[type="checkbox"] { appearance: auto !important; width: 20px !important; height: 20px !important; opacity: 1 !important; accent-color: #1764a2; }
 .gradio-container { max-width: 1450px !important; }
 .gradio-container .qc-overlay {
  position: fixed !important; inset: 0 !important; z-index: 1000 !important;

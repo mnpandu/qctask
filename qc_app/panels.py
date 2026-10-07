@@ -43,6 +43,15 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
             with gr.Column(elem_classes="qc-dialog"):
                 gr.Markdown(f"### Claim {claim_id}")
                 close_edit = gr.Button("Close", size="sm")
+                gr.Markdown("#### Claim options")
+                with gr.Row():
+                    report_exclusive = gr.Checkbox(
+                        label="Report Exclusive",
+                        value=review_details.get("reportExclusive", False),
+                        interactive=bindings.can_manage,
+                        visible=True,
+                        elem_classes="qc-report-exclusive",
+                    )
                 gr.Markdown("#### Select Review Areas")
                 gr.Markdown("Check each area that applies to this claim.")
                 with gr.Row(elem_classes="qc-review-areas-row"):
@@ -109,6 +118,13 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                     "Save Points and QC Review", variant="primary", visible=bindings.can_manage
                 )
                 edit_claim_id_state = gr.State(claim_id)
+                report_exclusive_notice = gr.Markdown("")
+                report_exclusive.input(
+                    claims.save_report_exclusive,
+                    [bindings.task_id_state, edit_claim_id_state, report_exclusive, bindings.user_state],
+                    report_exclusive_notice,
+                    key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-report-exclusive-input",
+                )
                 save_edit.click(
                     claims.save_claim_edit_group,
                     [
@@ -131,13 +147,32 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                 )
                 gr.Markdown("#### Conversation and notes")
                 conversation = gr.HTML('<p class="qc-empty">Open this editor to load notes.</p>')
-                recipient = gr.Textbox(
-                    label="Send note to RACF/user name (optional; blank sends to yourself)",
-                    max_length=100,
-                )
+                with gr.Row(equal_height=True):
+                    recipient = gr.Textbox(
+                        label="Send note to RACF/user name (optional; blank sends to yourself)",
+                        max_length=100,
+                        scale=3,
+                    )
+                    email_management = gr.Button("Email Management", scale=1)
                 note_text = gr.Textbox(label="Note", lines=3, max_length=4000)
                 send_note = gr.Button("Send Note", variant="primary")
                 note_notice = gr.Markdown("")
+                with gr.Column(visible=False, elem_classes=["qc-overlay", "qc-email-confirmation"]) as email_confirmation:
+                    with gr.Column(elem_classes="qc-dialog"):
+                        gr.Markdown("### Management notified")
+                        close_email = gr.Button("OK", variant="primary")
+                email_management.click(
+                    lambda: gr.update(visible=True),
+                    outputs=email_confirmation,
+                    queue=False,
+                    key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-email-notified",
+                )
+                close_email.click(
+                    lambda: gr.update(visible=False),
+                    outputs=email_confirmation,
+                    queue=False,
+                    key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-email-close",
+                )
                 send_note.click(
                     messaging.send_claim_note_form,
                     [
@@ -172,6 +207,7 @@ def build_completed_claims(canonical, bindings: TaskViewBindings):
                 edit_decision,
                 edit_comment,
                 edit_nurse_points,
+                report_exclusive,
             ],
             key=f"task-{bindings.task_id_state.value}-claim-{claim_id}-event-130-click",
         )
@@ -217,35 +253,10 @@ def build_review_panel(task_id: int, bindings: TaskViewBindings):
                     decision_choices, saved_decision, review_editable = qc.review_decision_options(
                         claim_status, review_details
                     )
-                    with gr.Row(elem_classes="qc-review-areas-row"):
-                        points = gr.Textbox(
-                            value=review_details.get("points", ""),
-                            label="Contract Points",
-                            interactive=bindings.can_manage,
-                            max_length=10,
-                            lines=1,
-                            scale=0,
-                            min_width=0,
-                            elem_classes="qc-review-points",
-                        )
-                        nurse_points = gr.Textbox(
-                            value=review_details.get("nursePoints", ""),
-                            label="Nurse Points",
-                            interactive=bindings.can_manage,
-                            max_length=10,
-                            lines=1,
-                            scale=0,
-                            min_width=0,
-                            elem_classes="qc-review-points",
-                        )
-                        categories = gr.CheckboxGroup(
-                            choices=list(qc.QC_REVIEW_CATEGORIES),
-                            value=review_details.get("reviewCategories", []),
-                            label="Review Areas",
-                            interactive=bindings.can_manage,
-                            scale=1,
-                            min_width=0,
-                        )
+                    # Preserve saved review values without exposing these controls.
+                    points = gr.State(review_details.get("points", ""))
+                    nurse_points = gr.State(review_details.get("nursePoints", ""))
+                    categories = gr.State(review_details.get("reviewCategories", []))
                     with gr.Row():
                         decision = gr.Dropdown(
                             choices=decision_choices,

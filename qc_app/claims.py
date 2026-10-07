@@ -37,6 +37,27 @@ def update_qc_comment(decision):
     return gr.update(**qc_comment_options(decision))
 
 
+def save_report_exclusive(task_id, claim_id, report_exclusive, user=None):
+    identity.require_manage(user)
+    if not isinstance(report_exclusive, bool):
+        raise gr.Error("Report Exclusive must be checked or unchecked.")
+    try:
+        with database.connect_db() as conn:
+            qc.lock_task(conn, task_id, config.CASE_ID)
+            rows, _ = qc.review_view(conn, task_id)
+            if claim_id not in {row[0] for row in rows}:
+                raise ValueError("This claim does not belong to the selected task.")
+            qc.sync_canonical(
+                conn, task_id, identity.actor_id(user), claim_id,
+                {"reportExclusive": report_exclusive},
+            )
+    except ValueError as exc:
+        raise gr.Error(str(exc)) from None
+    except psycopg.Error:
+        raise errors.database_error() from None
+    return "Report Exclusive saved."
+
+
 def save_claim_form(task_id, claim_id, categories, decision, comment, user=None, points=None, nurse_points=None, claim_data=None):
     identity.require_manage(user)
     try:
@@ -77,6 +98,7 @@ def save_claim_edit_form(
     comment,
     user=None,
     nurse_points=None,
+    report_exclusive=None,
 ):
     identity.require_manage(user)
     categories = [
@@ -106,6 +128,7 @@ def save_claim_edit_form(
                 categories,
                 points,
                 **({"nurse_points": nurse_points} if nurse_points is not None else {}),
+                **({"report_exclusive": report_exclusive} if report_exclusive is not None else {}),
             )
     except ValueError as exc:
         raise gr.Error(str(exc)) from None
@@ -192,9 +215,9 @@ def open_claim_editor_group(task_id, claim_id, user=None):
     metadata = repository.task_metadata(task_id)
     item = next(c for c in metadata[3]["claimsForReviews"] if c["claimNumber"] == claim_id)
     nurse_points = item.get("qcReviewDetails", {}).get("nursePoints", "")
-    return (*values[:3], gr.update(value=selected, visible=True), *values[8:], gr.update(value=nurse_points))
+    return (*values[:3], gr.update(value=selected, visible=True), *values[8:], gr.update(value=nurse_points), gr.update(value=item.get("qcReviewDetails", {}).get("reportExclusive", False)))
 
 
-def save_claim_edit_group(task_id, claim_id, areas, points, decision, comment, user=None, nurse_points=None):
+def save_claim_edit_group(task_id, claim_id, areas, points, decision, comment, user=None, nurse_points=None, report_exclusive=None):
     checked = [area in (areas or []) for area in qc.QC_REVIEW_CATEGORIES]
-    return save_claim_edit_form(task_id, claim_id, *checked, points, decision, comment, user, nurse_points)
+    return save_claim_edit_form(task_id, claim_id, *checked, points, decision, comment, user, nurse_points, report_exclusive)

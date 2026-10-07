@@ -12,7 +12,7 @@ def login_user(username):
     return (
         user,
         gr.update(visible=False),
-        gr.update(value=f"Signed in as {user['name']}", visible=True),
+        gr.update(value=f"Signed in as {user['name']} ({user['role']})", visible=True),
         tasks.refresh_tasks(user),
         notifications.notification_badge(user),
     )
