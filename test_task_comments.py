@@ -41,16 +41,12 @@ class TaskCommentsTests(unittest.TestCase):
                     reviews = saved[1][2]
                     self.assertEqual(len(reviews), 1 if manual else 2)
                     self.assertEqual(reviews[0]["claimNumber"], ids[0])
-                    self.assertEqual(reviews[0]["contractPoints"], "2")
-                    self.assertEqual(reviews[0]["nursePoints"], "3")
-                    self.assertEqual(reviews[0]["reviewAreas"], ["Coding"])
-                    self.assertEqual(reviews[0]["finalStatus"], "Agree")
+                    self.assertEqual(set(reviews[0]), {"claimNumber", "qcReview", "qcComment"})
+                    self.assertEqual(reviews[0]["qcReview"], "Agree")
                     qc.save_claim_decision(conn, task_id, config.CASE_ID, ids[0], "Agree", "Completed", "pandu", [], "9", "9")
                     refreshed = entries()
                     self.assertEqual(len(refreshed), 2)
-                    self.assertEqual(refreshed[1][2][0]["contractPoints"], "9")
-                    self.assertEqual(refreshed[1][2][0]["nursePoints"], "9")
-                    self.assertEqual(refreshed[1][2][0]["reviewAreas"], [])
+                    self.assertEqual(set(refreshed[1][2][0]), {"claimNumber", "qcReview", "qcComment"})
                     task_service.persist_update(conn, task_id, "", "", "Updated creation comment", user=config.USERS["regine"])
                     self.assertEqual(entries()[0][1], "Updated creation comment")
                     refreshed = entries()
@@ -91,8 +87,10 @@ class TaskCommentsTests(unittest.TestCase):
             self.assertIn(label, html)
         self.assertNotIn("<script>", html)
         self.assertIn("&lt;script&gt;comment", html)
-        for value in ("C1", "Contract Points", "Nurse Points", "Coding", "Final Status", "Agree"):
+        for value in ("C1", "QC Review", "QC Comment", "Agree"):
             self.assertIn(value, html)
+        for removed in ("Contract Points", "Nurse Points", "Review Areas", "Final Status", "Coding"):
+            self.assertNotIn(removed, html)
 
     def test_signed_out_comments_skip_database(self):
         with patch.object(database, "connect_db") as connect:

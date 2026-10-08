@@ -26,10 +26,6 @@ def record_completion(conn, task_id, actor, actor_name="", existing_only=False):
             COALESCE((
                 SELECT jsonb_agg(jsonb_build_object(
                     'claimNumber', item->>'claimNumber',
-                    'contractPoints', item->'qcReviewDetails'->>'points',
-                    'nursePoints', item->'qcReviewDetails'->>'nursePoints',
-                    'reviewAreas', COALESCE(item->'qcReviewDetails'->'reviewCategories', '[]'::jsonb),
-                    'finalStatus', item->>'qcReviewStatus',
                     'qcReview', COALESCE(item->'qcReviewDetails'->>'qcReview', item->'qcReviewDetails'->>'outcome'),
                     'qcComment', COALESCE(item->'qcReviewDetails'->>'qcReviewComment', item->'qcReviewDetails'->>'notes')
                 ) ORDER BY position)

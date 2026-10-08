@@ -16,3 +16,17 @@ ALTER TABLE pic_master.task_comments
     ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(200) NOT NULL DEFAULT '';
 UPDATE pic_master.task_comments c SET task_name = t.task_name
 FROM pic_master.task t WHERE c.task_id = t.task_id AND c.task_name = '';
+
+-- Remove obsolete fields from stored completion comment snapshots.
+UPDATE pic_master.task_comments c
+SET claim_reviews = (
+    SELECT COALESCE(jsonb_agg(
+        item - ARRAY['contractPoints', 'nursePoints', 'reviewAreas', 'finalStatus']
+        ORDER BY position
+    ), '[]'::jsonb)
+    FROM jsonb_array_elements(c.claim_reviews) WITH ORDINALITY AS reviews(item, position)
+)
+WHERE EXISTS (
+    SELECT 1 FROM jsonb_array_elements(c.claim_reviews) AS reviews(item)
+    WHERE item ?| ARRAY['contractPoints', 'nursePoints', 'reviewAreas', 'finalStatus']
+);

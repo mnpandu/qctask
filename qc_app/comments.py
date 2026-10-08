@@ -7,7 +7,7 @@ import psycopg
 from . import config, database, errors, identity
 
 
-HEADERS = ["Claim #", "Contract Points", "Nurse Points", "Review Areas", "Final Status", "QC Review", "QC Comment"]
+HEADERS = ["Claim #", "QC Review", "QC Comment"]
 
 
 def load_comments_html(user):
@@ -39,13 +39,11 @@ def render_comments(rows):
             header = "".join('<th scope="col">' + escape(label) + '</th>' for label in HEADERS)
             body = ""
             for review in reviews:
-                values = [review.get("claimNumber"), review.get("contractPoints"), review.get("nursePoints"),
-                          ", ".join(review.get("reviewAreas") or []), review.get("finalStatus"),
-                          review.get("qcReview"), review.get("qcComment")]
+                values = [review.get("claimNumber"), review.get("qcReview"), review.get("qcComment")]
                 body += '<tr>' + "".join('<td>' + escape(str(value if value is not None else "")) + '</td>'
                                          for value in values) + '</tr>'
             if not body:
-                body = '<tr><td colspan="7">No reviewed claims.</td></tr>'
+                body = '<tr><td colspan="3">No reviewed claims.</td></tr>'
             table = '<table><thead><tr>' + header + '</tr></thead><tbody>' + body + '</tbody></table>'
         metadata = [("Date", date), ("Task ID", task_id), ("Task Name", task_name),
                     ("RACF - Name", actor_label)]
